@@ -1,0 +1,5 @@
+/*
+  Permissions-Policy: camera=(self), microphone=(self), display-capture=(self), fullscreen=(self)
+  Referrer-Policy: no-referrer
+  X-Content-Type-Options: nosniff
+  Cache-Control: no-cache

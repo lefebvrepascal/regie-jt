@@ -1,0 +1,14 @@
+# Netlify
+.netlify/
+# macOS / Windows
+.DS_Store
+Thumbs.db
+# Relais du direct : binaire ffmpeg et dépendances éventuelles (non versionnés)
+relais/ffmpeg
+relais/ffmpeg.exe
+node_modules/
+# Enregistrements et fichiers de travail
+*.mp4
+*.webm
+*.mov
+*.log
