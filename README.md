@@ -20,7 +20,8 @@ Conçue au **Collège du Sacré-Cœur de Halluin** pour le cours d'iPad de 6e. F
 | Habillage | Logo ou nom du JT, pastille « EN DIRECT », horloge, bandeau défilant, bandeau titre du sujet, générique animé avec jingle, 6 jeux de couleurs |
 | Conducteur | Sujets avec titre, sous-titre, texte du prompteur et illustration (image ou vidéo MP4, encadrée ou plein écran) affichée dès la mise à l'antenne |
 | Prompteur | Plein écran (iPad face à l'élève) ou fenêtre séparée, vitesse, taille, texte inversé, raccourcis clavier |
-| Multicaméra | iPad caméras sur le même réseau (WebRTC), vignettes en direct, bascule d'un toucher ou touches 1–9, voyant « À l'antenne » sur l'iPad, bouton **Prévenir** avec décompte |
+| Rôles | Un appareil **régie** (ne filme pas), un **iPad présentateur** (fond vert + prompteur) et des **iPad caméras**, connectés par QR code |
+| Multicaméra | Vignettes en direct, bascule d'un toucher ou touches 1–9, voyant « À l'antenne » sur chaque iPad, bouton **Prévenir** avec décompte |
 | Son | Micro de la régie et micros des iPad, chaque canal en auto / ouvert / coupé, vumètres, écoute au casque |
 | Enregistrement | Vidéo de l'émission complète avec le son (MP4 ou WebM selon le navigateur), téléchargeable |
 | Direct | Facebook, Instagram (format vertical), LinkedIn, YouTube via le relais local `relais/` |
@@ -29,13 +30,18 @@ Conçue au **Collège du Sacré-Cœur de Halluin** pour le cours d'iPad de 6e. F
 
 ## Démarrage rapide
 
-### Utiliser la version en ligne
-1. Ouvrez https://regie-jt-sacre-coeur.netlify.app/ sur l'ordinateur ou l'iPad de régie, autorisez la caméra et le micro.
-2. Onglet **Caméra** : touchez la pipette, puis le fond vert dans l'image ; montez la tolérance jusqu'à ce que le fond disparaisse.
-3. Préparez les sujets dans l'onglet **Conducteur**, puis **● REC**.
+### Trois rôles, trois appareils
+À la première ouverture, chaque appareil choisit son rôle (modifiable avec « Changer de rôle ») :
 
-### Ajouter un iPad caméra
-Sur l'autre iPad, scannez le QR code affiché dans l'onglet Caméra (ou ouvrez la même adresse et touchez **Mode caméra**), saisissez le code de la régie et un nom. L'iPad apparaît sous l'image programme : touchez sa vignette pour le mettre à l'antenne.
+| Rôle | Appareil | Ce qu'il fait |
+| --- | --- | --- |
+| **Régie** | iPad ou ordinateur de l'opérateur | Ne filme pas. Choisit la caméra à l'antenne, gère décor, bandeaux, conducteur, prompteur, son et enregistrement. |
+| **Présentateur** | iPad face à l'élève, devant le fond vert | Filme avec la caméra avant (incrustée sur le décor) et affiche le prompteur, piloté par la régie. |
+| **Caméra** | autres iPad | Plans larges, reportages, interviews, avec la caméra arrière (image plein cadre). |
+
+1. Ouvrez https://regie-jt-sacre-coeur.netlify.app/ sur l'appareil de régie et choisissez **Régie**.
+2. Onglet **Caméra** : scannez le QR code **Présentateur** avec l'iPad placé face à l'élève, puis le QR code **Caméras** avec les autres iPad.
+3. Réglez le fond vert du présentateur (pipette, tolérance), préparez le **Conducteur**, lancez le prompteur (Espace) et **● REC**.
 
 > Les appareils doivent avoir accès à internet pour se trouver (service de mise en relation PeerJS) ; l'image passe ensuite directement d'un appareil à l'autre. Si le Wi-Fi isole les appareils entre eux (« isolation des clients »), l'image n'arrive pas : utilisez un réseau dédié au studio.
 

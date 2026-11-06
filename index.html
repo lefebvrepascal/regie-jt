@@ -196,6 +196,24 @@ body.is-live .btn.live{background:#7c3aed;border-color:#7c3aed;color:#fff;animat
 .live-stats{display:flex;flex-direction:column;gap:6px;font-size:13.5px;font-variant-numeric:tabular-nums;background:#0b0e13;border:1px solid var(--line);border-radius:8px;padding:10px 12px}
 .live-stats .err{color:#ff8a82}
 
+/* Choix du rôle */
+.role-pick{position:fixed;inset:0;z-index:80;background:var(--bg);display:flex;align-items:center;justify-content:center;padding:24px 16px;overflow:auto}
+.role-card{width:min(860px,100%);display:flex;flex-direction:column;gap:18px}
+.role-card h2{margin:0;font:700 28px var(--display);letter-spacing:.04em;text-transform:uppercase;text-wrap:balance}
+.roles{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,240px),1fr));gap:14px}
+.role{display:flex;flex-direction:column;gap:8px;text-align:left;padding:22px;border-radius:12px;border:1px solid var(--line);background:var(--panel);cursor:pointer;color:var(--fg)}
+.role:hover,.role:focus-visible{border-color:var(--accent)}
+.role b{font:700 26px var(--display);letter-spacing:.06em;text-transform:uppercase}
+.role span{color:#c6cfdb;font-size:14.5px;line-height:1.45}
+.role[data-role="regie"] b{color:#9cc2ff}.role[data-role="presenter"] b{color:#7ff0a8}.role[data-role="camera"] b{color:#ffcf70}
+.qr-fig{margin:0;display:flex;flex-direction:column;align-items:center;gap:4px}
+.qr-fig figcaption{font:700 12px var(--display);letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}
+.tile .role-tag{font:700 10.5px var(--display);letter-spacing:.08em;color:#7ff0a8}
+/* Présentateur : prompteur plein écran, image de contrôle en petit */
+.cam-mode.presenter video{inset:auto;top:calc(12px + env(safe-area-inset-top,0px));right:12px;width:min(30vw,260px);height:auto;aspect-ratio:16/9;border:1px solid #333;border-radius:6px;z-index:2}
+.cam-mode .cm-prompt{z-index:0}
+.cam-mode .cm-prompt .pf-marker{top:22%}
+
 /* Mode caméra (iPad émetteur) */
 .cam-mode{position:fixed;inset:0;z-index:70;background:#000;color:#fff}
 .cam-mode video{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;background:#000}
@@ -246,7 +264,7 @@ body.is-live .btn.live{background:#7c3aed;border-color:#7c3aed;color:#fff;animat
   <button class="btn rec" id="recBtn" title="Enregistrer (R)">● REC</button>
   <button class="btn live" id="liveBtn" title="Diffuser en direct sur les réseaux sociaux">DIRECT</button>
   <button class="btn" id="pfBtn" title="Prompteur plein écran (P)">Prompteur</button>
-  <button class="btn" id="camModeBtn" title="Utiliser cet appareil comme caméra d'une autre régie">Mode caméra</button>
+  <button class="btn" id="camModeBtn" title="Choisir le rôle de cet appareil : régie, présentateur ou caméra">Changer de rôle</button>
   <button class="btn" id="fsBtn" title="Afficher l'image programme en plein écran">Plein écran</button>
 </header>
 
@@ -260,8 +278,8 @@ body.is-live .btn.live{background:#7c3aed;border-color:#7c3aed;color:#fff;animat
     <div class="monitor" id="monitor">
       <canvas id="out" width="1280" height="720" aria-label="Image programme du JT"></canvas>
       <div class="cam-msg" id="camMsg">
-        <p id="camMsgText">Le décor et l'habillage sont prêts. Activez la caméra placée face au fond vert.</p>
-        <button class="btn primary" id="camStart2">Activer la caméra</button>
+        <p id="camMsgText">La régie est prête. Connectez l'iPad présentateur (fond vert) et les iPad caméras : scannez les QR codes de l'onglet Caméra.</p>
+        <button class="btn primary" id="camStart2">Afficher les QR codes</button>
       </div>
       <div class="pick-hint" id="pickHint" hidden>Touchez le fond vert dans l'image</div>
     </div>
@@ -305,23 +323,21 @@ body.is-live .btn.live{background:#7c3aed;border-color:#7c3aed;color:#fff;animat
             <li>Le recadrage efface les bords de la salle si le fond ne remplit pas l'image.</li>
           </ul>
         </details>
-        <h3>Caméra de la régie</h3>
-        <label class="field"><span>Caméra</span><select id="camSel"><option value="">Caméra par défaut</option></select></label>
-        <div class="row"><button class="btn primary" id="camStart">Activer la caméra</button></div>
-        <label class="check"><input type="checkbox" id="mic" data-k="cam.mic"> Enregistrer le son du micro de la régie</label>
+        <h3>Son de la régie</h3>
         <label class="check"><input type="checkbox" id="monitor" data-k="audio.monitor"> Écouter le son du JT en régie (avec un casque, pour éviter l'écho)</label>
-        <p class="note">Sous chaque vignette : « Son auto » ouvre le micro de la caméra seulement quand elle est à l'antenne, « Son ouvert » le laisse toujours actif, « Son coupé » le ferme.</p>
+        <p class="note">La régie ne filme pas : l'image et le son viennent de l'iPad présentateur et des iPad caméras. Sous chaque vignette : « Son auto » ouvre le micro de la caméra seulement quand elle est à l'antenne, « Son ouvert » le laisse toujours actif, « Son coupé » le ferme.</p>
 
-        <h3 id="netSection">iPad caméras (même réseau)</h3>
+        <h3 id="netSection">iPad présentateur et caméras</h3>
         <div class="net-box">
           <div class="net-code"><span class="note">Code de la régie</span><b id="regieCode">·····</b><span class="chip" id="netChip">Hors ligne</span></div>
-          <div class="qr" id="qrBox" hidden></div>
+          <figure class="qr-fig"><div class="qr" id="qrPres" hidden></div><figcaption>Présentateur</figcaption></figure>
+          <figure class="qr-fig"><div class="qr" id="qrBox" hidden></div><figcaption>Caméras</figcaption></figure>
         </div>
         <label class="field" id="camUrlField"><span>Adresse en ligne de la régie (https) — sert à fabriquer le QR code</span><input type="text" id="camPageUrl" data-k="camPageUrl" placeholder="https://regie-jt-sacre-coeur.netlify.app/ (par défaut)" inputmode="url" autocomplete="off"></label>
         <ol class="steps">
-          <li>Sur l'autre iPad, ouvrez cette même page dans Safari<span id="qrHint" hidden> (ou scannez le QR code avec l'appareil photo)</span>.</li>
-          <li>Touchez « Mode caméra », saisissez le code et un nom, puis « Se connecter ».</li>
-          <li>L'iPad apparaît sous l'image programme : touchez sa vignette (ou 1, 2, 3…) pour le mettre à l'antenne.</li>
+          <li><b>iPad présentateur</b> : face à l'élève devant le fond vert, caméra avant. Il filme, incruste sur le décor et affiche le prompteur.<span id="qrHint" hidden> Scannez le QR « Présentateur ».</span></li>
+          <li><b>iPad caméras</b> : plans larges, reportages, interviews. Scannez le QR « Caméras », ou ouvrez la page et choisissez « Caméra ».</li>
+          <li>Chaque iPad apparaît sous l'image programme : touchez sa vignette (ou 1, 2, 3…) pour le mettre à l'antenne.</li>
         </ol>
         <div class="row cue-set">
           <label class="field" style="flex:0 0 auto"><span>Décompte « Prévenir »</span><select id="cueSeconds" data-k="cueSeconds"><option value="5">5 s</option><option value="10">10 s</option><option value="15">15 s</option><option value="20">20 s</option><option value="30">30 s</option></select></label>
@@ -334,6 +350,15 @@ body.is-live .btn.live{background:#7c3aed;border-color:#7c3aed;color:#fff;animat
         <p class="note">Les réglages ci-dessous sont mémorisés pour chaque caméra.</p>
         <label class="check"><input type="checkbox" id="keyOn" data-k="key.on"> Incruster sur le décor (fond vert)</label>
         <label class="check"><input type="checkbox" id="mirror" data-k="cam.mirror"> Effet miroir</label>
+
+        <details class="tips" id="localCamBox">
+          <summary>Utiliser aussi la caméra de cet appareil (facultatif)</summary>
+          <div style="display:flex;flex-direction:column;gap:10px;margin-top:10px">
+            <label class="field"><span>Caméra</span><select id="camSel"><option value="">Caméra par défaut</option></select></label>
+            <div class="row"><button class="btn" id="camStart">Activer la caméra de la régie</button></div>
+            <label class="check"><input type="checkbox" id="mic" data-k="cam.mic"> Avec le micro de cet appareil</label>
+          </div>
+        </details>
 
         <h3>Fond vert</h3>
         <div class="row">
@@ -494,20 +519,34 @@ body.is-live .btn.live{background:#7c3aed;border-color:#7c3aed;color:#fff;animat
   </div>
 </div>
 
-<!-- Mode caméra : cet iPad envoie son image à une régie -->
+<!-- Choix du rôle de l'appareil -->
+<div class="role-pick" id="rolePick" hidden>
+  <div class="role-card">
+    <h2>Régie JT — quel est le rôle de cet appareil ?</h2>
+    <div class="roles">
+      <button class="role" data-role="regie"><b>Régie</b><span>Ne filme pas. Choisit la caméra à l'antenne, l'habillage, le prompteur, enregistre l'émission.</span></button>
+      <button class="role" data-role="presenter"><b>Présentateur</b><span>Filme l'élève devant le fond vert avec la caméra avant et lui affiche le prompteur.</span></button>
+      <button class="role" data-role="camera"><b>Caméra</b><span>Plan large, reportage ou interview, avec la caméra arrière.</span></button>
+    </div>
+    <p class="note">Le choix est mémorisé sur cet appareil. Bouton « Changer de rôle » pour le modifier.</p>
+  </div>
+</div>
+
+<!-- Mode caméra / présentateur : cet iPad envoie son image à la régie -->
 <div class="cam-mode" id="camMode" hidden>
   <video id="cmVideo" playsinline muted autoplay></video>
+  <div class="pf-stage cm-prompt" id="cmPrompt" hidden><div class="pf-marker"></div><div class="pf-text" id="cmPromptText"></div></div>
   <div class="cm-tally" id="cmTally">NON CONNECTÉE</div>
   <div class="cm-count" id="cmCount" hidden><b id="cmCountN">10</b><span id="cmCountT">À l'antenne dans</span></div>
   <div class="cm-panel" id="cmPanel">
-    <h2>Mode caméra</h2>
-    <p class="note">Cet appareil envoie son image en direct à la régie du JT.</p>
+    <h2 id="cmTitle">iPad caméra</h2>
+    <p class="note" id="cmIntro">Cet appareil envoie son image et son son en direct à la régie du JT.</p>
     <label class="field"><span>Code de la régie</span><input type="text" id="cmCode" maxlength="5" autocapitalize="characters" autocomplete="off" spellcheck="false" placeholder="5 caractères"></label>
     <label class="field"><span>Nom de cette caméra</span><input type="text" id="cmName" maxlength="24" placeholder="iPad plateau"></label>
     <label class="field"><span>Objectif</span><select id="cmCam"><option value="">Caméra arrière</option></select></label>
     <label class="check"><input type="checkbox" id="cmMic" checked> Envoyer le son du micro de cet iPad</label>
     <div class="cm-vu" aria-hidden="true"><i id="cmVu"></i></div>
-    <div class="row"><button class="btn primary" id="cmGo">Se connecter à la régie</button><button class="btn ghost" id="cmBack">Revenir à la régie</button></div>
+    <div class="row"><button class="btn primary" id="cmGo">Se connecter à la régie</button><button class="btn ghost" id="cmBack">Changer de rôle</button></div>
     <p class="cm-status" id="cmStatus">Choisissez l'objectif, saisissez le code affiché sur la régie.</p>
   </div>
   <button class="btn sm cm-toggle" id="cmToggle" hidden>Réglages</button>
@@ -3311,7 +3350,7 @@ function setupSourceAudio(s){
   } catch (e) { s.audio = null; }
   applyAudio(); renderMultiview();
 }
-const audioModeOf = s => S.audioModes[s.pkey] || (s.kind === 'local' ? 'on' : 'auto');
+const audioModeOf = s => S.audioModes[s.pkey] || (s.kind === 'local' || s.role === 'presenter' ? 'on' : 'auto');
 const AUDIO_LABEL = {auto:'Son auto', on:'Son ouvert', off:'Son coupé'};
 function applyAudio(){
   if (!AC) return;
@@ -3477,7 +3516,8 @@ function upsertSource(o){
   ensureAudio(); setupSourceAudio(s);
   renderMultiview();
   s.video.play().catch(() => {});
-  if (!progId || progId === s.id) switchSource(s.id, true);
+  const cur = progSource();
+  if (!progId || progId === s.id || (s.role === 'presenter' && (!cur || cur.role !== 'presenter') && !rec)) switchSource(s.id, true);
   else sendTally();
   camMessage('', false); updateChips();
   return s;
@@ -3490,7 +3530,7 @@ function removeSource(id){
   s.video.srcObject = null; s.tile.remove(); sources.splice(i, 1);
   if (progId === id) { progId = null; video = null; lastDest = null; if (sources[0]) switchSource(sources[0].id, true); }
   renderMultiview(); updateChips(); syncProfName();
-  if (!sources.length) camMessage("Aucune caméra : activez la caméra de la régie ou connectez un iPad caméra.", true);
+  if (!sources.length) camMessage("Aucune image : connectez l'iPad présentateur ou un iPad caméra (QR codes de l'onglet Caméra).", true);
 }
 function switchSource(id, force){
   const s = sources.find(x => x.id === id); if (!s) return;
@@ -3502,7 +3542,11 @@ function switchSource(id, force){
   if (p) {
     S.key = merge(clone(DEFAULT.key), p.key); S.crop = merge(clone(DEFAULT.crop), p.crop);
     S.person = merge(clone(DEFAULT.person), p.person); S.cam.mirror = !!p.mirror;
-  } else S.profiles[s.pkey] = snapProfile();
+  } else {
+    if (s.role === 'presenter') S.key.on = true;        // présentateur : incrusté sur le décor
+    else if (s.role === 'camera') S.key.on = false;     // caméra : image plein cadre
+    S.profiles[s.pkey] = snapProfile();
+  }
   setPicking(false); syncInputs(); updateSwatch(); applyAudio(); renderMultiview(); syncProfName(); sendTally(); save();
 }
 function syncProfName(){ const s = progSource(); $('#profName').textContent = s ? s.label : 'aucune'; }
@@ -3532,6 +3576,12 @@ function renderMultiview(){
 function sendTally(){
   for (const s of sources) if (s.conn && s.conn.open) { try { s.conn.send({tally: s.id === progId, rec: !!rec}); } catch (e) {} }
 }
+/* ---------- prompteur sur l'iPad présentateur ---------- */
+function sendPrompter(extra){
+  const payload = Object.assign({sections: S.rundown.map(it => ({t: it.title || '', x: it.text || ''})), speed: S.prompter.speed, size: S.prompter.size, mirror: !!S.prompter.mirror, playing: P.playing}, extra || {});
+  for (const s of sources) if (s.role === 'presenter' && s.conn && s.conn.open) { try { s.conn.send({prompt: payload}); } catch (e) {} }
+}
+
 /* ---------- alerte « tu vas passer à l'antenne » pour les iPad caméras ---------- */
 const cueSeconds = () => Math.max(3, Math.min(30, Math.round(+S.cueSeconds || 10)));
 function sendCue(s){
@@ -3573,15 +3623,21 @@ function setNet(text, state){
   const c = $('#netChip'); c.textContent = text; c.className = 'chip' + (state === 'on' ? ' on' : state === 'warn' ? ' warn' : state === 'off' ? ' off' : '');
 }
 const ONLINE_URL = 'https://regie-jt-sacre-coeur.netlify.app/';   // version en ligne (Netlify)
-function camPageURL(){
-  const local = /^(localhost|127\.0\.0\.1)$/.test(location.hostname);
+function camPageURL(kind = 'cam'){
+  const local = /^(localhost|127\.0\.0\.1)$/.test(location.hostname), tag = '#' + kind + '-' + REGIE_CODE;
   $('#camUrlField').hidden = location.protocol === 'https:';
-  if (location.protocol === 'https:') return location.origin + location.pathname + '#cam-' + REGIE_CODE;
+  if (location.protocol === 'https:') return location.origin + location.pathname + tag;
   const u = (String(S.camPageUrl || '').trim() || ONLINE_URL).replace(/#.*$/, '');
-  if (/^https:\/\/[^\s]+$/i.test(u)) return u + '#cam-' + REGIE_CODE;
-  return location.protocol === 'http:' && !local ? location.origin + location.pathname + '#cam-' + REGIE_CODE : '';
+  if (/^https:\/\/[^\s]+$/i.test(u)) return u + tag;
+  return location.protocol === 'http:' && !local ? location.origin + location.pathname + tag : '';
 }
 function renderQR(){
+  const purl = camPageURL('presentateur'), pbox = $('#qrPres');
+  pbox.hidden = true;
+  if (purl && typeof qrcode === 'function') {
+    try { const q = qrcode(0, 'M'); q.addData(purl); q.make(); pbox.innerHTML = q.createSvgTag({cellSize:3, margin:2, scalable:true}); pbox.title = purl; pbox.hidden = false; } catch (e) {}
+  }
+  pbox.parentNode.hidden = pbox.hidden;
   const url = camPageURL(), box = $('#qrBox');
   box.hidden = false; box.classList.remove('empty');
   if (url && typeof qrcode === 'function') {
@@ -3613,19 +3669,20 @@ function startRegiePeer(){
   peer.on('open', () => setNet('Prête à recevoir', 'on'));
   peer.on('connection', conn => {
     conns[conn.peer] = conn;
-    conn.on('open', () => { const s = sources.find(x => x.id === 'r:' + conn.peer); if (s) { s.conn = conn; sendTally(); } });
+    conn.on('open', () => { const s = sources.find(x => x.id === 'r:' + conn.peer); if (s) { s.conn = conn; sendTally(); sendPrompter(); } });
     conn.on('close', () => { delete conns[conn.peer]; const s = sources.find(x => x.id === 'r:' + conn.peer); if (s) { toast(`« ${s.label} » s'est déconnectée.`); removeSource(s.id); } });
   });
   peer.on('call', call => {
-    const name = String((call.metadata && call.metadata.name) || 'iPad').slice(0, 24);
+    const role = call.metadata && call.metadata.role === 'presenter' ? 'presenter' : 'camera';
+    const name = String((call.metadata && call.metadata.name) || (role === 'presenter' ? 'Présentateur' : 'iPad')).slice(0, 24);
     const id = 'r:' + call.peer;
     let label = name, n = 2;
     while (sources.some(s => s.label === label && s.id !== id)) label = `${name} ${n++}`;
     call.answer();
     call.on('stream', st => {
-      const s = upsertSource({id, label, kind:'remote', stream:st, pkey:'remote:' + label, call});
-      s.conn = conns[call.peer] || s.conn; sendTally();
-      toast(`Caméra « ${label} » connectée.`);
+      const s = upsertSource({id, label, kind:'remote', role, stream:st, pkey:'remote:' + label, call});
+      s.conn = conns[call.peer] || s.conn; sendTally(); sendPrompter();
+      toast(role === 'presenter' ? `Présentateur « ${label} » connecté : le prompteur s'affiche sur son iPad.` : `Caméra « ${label} » connectée.`);
     });
     call.on('close', () => removeSource(id));
     call.on('error', () => removeSource(id));
@@ -3648,7 +3705,39 @@ function stopRegiePeer(){
 }
 
 /* ---------- mode caméra : cet iPad envoie son image ---------- */
-const cm = {peer:null, conn:null, call:null, stream:null, wake:null};
+const cm = {peer:null, conn:null, call:null, stream:null, wake:null, role:'camera'};
+/* prompteur affiché sur l'iPad présentateur, piloté par la régie */
+const cmP = {sections:[], speed:50, size:52, mirror:false, playing:false, pos:0, last:0, raf:0};
+function cmPromptRender(){
+  const t = $('#cmPromptText');
+  t.innerHTML = cmP.sections.length
+    ? cmP.sections.map((s, i) => `<section data-i="${i}"><h3>${i+1}. ${esc(s.t || 'Sujet')}</h3>${String(s.x || '').split(/\n+/).filter(Boolean).map(p => `<p>${esc(p)}</p>`).join('')}</section>`).join('') + '<section class="end"><h3>Fin du journal</h3></section>'
+    : '<section><h3>Prompteur</h3><p>Le texte du conducteur apparaîtra ici dès la connexion à la régie.</p></section>';
+  $('#cmPrompt').style.setProperty('--pfs', cmP.size + 'px');
+  $('#cmPrompt').classList.toggle('mirror', cmP.mirror);
+}
+function cmPromptMsg(m){
+  const sameText = JSON.stringify(m.sections || cmP.sections) === JSON.stringify(cmP.sections) && +m.size === cmP.size && !!m.mirror === cmP.mirror;
+  if (Array.isArray(m.sections)) cmP.sections = m.sections;
+  cmP.speed = +m.speed || cmP.speed; cmP.size = +m.size || cmP.size; cmP.mirror = !!m.mirror; cmP.playing = !!m.playing;
+  if (!sameText) cmPromptRender();
+  if (typeof m.jump === 'number') { const sec = $('#cmPromptText').querySelectorAll('section')[m.jump]; if (sec) cmP.pos = sec.offsetTop; }
+  cmPromptLoop();
+}
+function cmPromptLoop(){
+  if (cmP.raf) return;
+  cmP.last = performance.now();
+  const tick = now => {
+    if (!inCamMode || cm.role !== 'presenter') { cmP.raf = 0; return; }
+    const dt = Math.min(.1, (now - cmP.last)/1000); cmP.last = now;
+    const txt = $('#cmPromptText');
+    if (cmP.playing) { cmP.pos += cmP.speed*dt; if (cmP.pos > txt.scrollHeight) { cmP.pos = txt.scrollHeight; cmP.playing = false; } }
+    txt.style.transform = `translateY(${Math.round($('#cmPrompt').clientHeight*.22 - cmP.pos)}px)`;
+    cmP.raf = requestAnimationFrame(tick);
+  };
+  cmP.raf = requestAnimationFrame(tick);
+}
+$('#cmPrompt').onclick = () => { cmP.playing = !cmP.playing; };
 function cmStatus(t){ $('#cmStatus').textContent = t; }
 let cmCueUntil = 0, cmCueTimer = 0, cmBase = 'off';
 function cmRender(){
@@ -3676,7 +3765,7 @@ function cmPanel(open){ $('#cmPanel').hidden = !open; $('#cmToggle').hidden = op
 async function cmStartCamera(){
   if (!navigator.mediaDevices?.getUserMedia) { cmStatus("La caméra n'est pas accessible : la page doit être ouverte en https dans Safari."); return; }
   const id = $('#cmCam').value;
-  const vc = id ? {deviceId:{exact:id}, width:{ideal:1280}, height:{ideal:720}} : {facingMode:{ideal:'environment'}, width:{ideal:1280}, height:{ideal:720}};
+  const vc = id ? {deviceId:{exact:id}, width:{ideal:1280}, height:{ideal:720}} : {facingMode:{ideal: cm.role === 'presenter' ? 'user' : 'environment'}, width:{ideal:1280}, height:{ideal:720}};
   try {
     const old = cm.stream;
     const oldAudio = old ? old.getAudioTracks().filter(t => t.readyState === 'live') : [];
@@ -3750,22 +3839,23 @@ function cmConnect(){
   if (code.length !== 5) { cmStatus('Le code de la régie compte 5 caractères.'); return; }
   if (typeof Peer !== 'function') { cmStatus("Le module réseau ne s'est pas chargé."); return; }
   if (!cm.stream) { cmStatus("La caméra n'est pas encore prête."); return; }
-  const name = $('#cmName').value.trim() || 'iPad caméra';
-  try { localStorage.setItem(STORE + '-camname', name); localStorage.setItem(STORE + '-camcode', code); } catch (e) {}
+  const name = $('#cmName').value.trim() || (cm.role === 'presenter' ? 'Présentateur' : 'iPad caméra');
+  try { localStorage.setItem(STORE + '-camname-' + cm.role, name); localStorage.setItem(STORE + '-camcode', code); } catch (e) {}
   cmDisconnect();
   cmStatus('Connexion à la régie ' + code + '…');
   const peer = cm.peer = new Peer(PEER_OPTS());
   peer.on('open', () => {
     const target = peerIdFor(code);
-    const conn = cm.conn = peer.connect(target, {metadata:{name}, reliable:true});
+    const conn = cm.conn = peer.connect(target, {metadata:{name, role: cm.role}, reliable:true});
     conn.on('open', () => { cmStatus(`Connectée à la régie ${code}. L'opérateur peut mettre « ${name} » à l'antenne.`); cmTally('ready'); setTimeout(() => cmPanel(false), 1500); });
     conn.on('data', d => {
       if (!d) return;
       if ('tally' in d) cmTally(d.tally ? 'live' : 'ready');
       if ('cue' in d) cmCue(d.cue);
+      if (d.prompt) cmPromptMsg(d.prompt);
     });
     conn.on('close', () => { if (cm.conn === conn) { cmStatus('La régie a fermé la connexion.'); cmTally('off'); cmPanel(true); } });
-    cm.call = peer.call(target, cm.stream, {metadata:{name}});
+    cm.call = peer.call(target, cm.stream, {metadata:{name, role: cm.role}});
   });
   peer.on('error', err => {
     if (cm.peer !== peer) return;
@@ -3777,16 +3867,27 @@ function cmConnect(){
   });
   peer.on('disconnected', () => { if (cm.peer === peer) { try { peer.reconnect(); } catch (e) {} } });
 }
-async function enterCamMode(code){
+async function enterCamMode(code, role = 'camera'){
+  cm.role = role === 'presenter' ? 'presenter' : 'camera';
+  const pres = cm.role === 'presenter';
+  $('#cmTitle').textContent = pres ? 'iPad présentateur' : 'iPad caméra';
+  $('#cmIntro').textContent = pres
+    ? "Placez cet iPad face à l'élève, devant le fond vert : il le filme avec la caméra avant et lui affiche le prompteur. Touchez le texte pour le mettre en pause."
+    : "Cet appareil envoie son image et son son en direct à la régie du JT.";
+  $('#cmName').placeholder = pres ? 'Présentateur' : 'iPad plateau';
+  $('#camMode').classList.toggle('presenter', pres);
+  $('#cmPrompt').hidden = !pres;
+  if (pres) { cmPromptRender(); cmPromptLoop(); }
   inCamMode = true; stopRegiePeer();
   if (rec) stopRec();
   for (const s of [camStream, micStream]) s && s.getTracks().forEach(t => t.stop());
   camStream = micStream = null; removeSource('local'); updateChips();
   $('#camMode').hidden = false; cmPanel(true); cmTally('off');
   let saved = {};
-  try { saved = {name: localStorage.getItem(STORE + '-camname'), code: localStorage.getItem(STORE + '-camcode')}; } catch (e) {}
+  try { saved = {name: localStorage.getItem(STORE + '-camname-' + cm.role), code: localStorage.getItem(STORE + '-camcode')}; } catch (e) {}
   $('#cmCode').value = code || saved.code || '';
-  $('#cmName').value = saved.name || '';
+  $('#cmName').value = saved.name || (pres ? 'Présentateur' : '');
+  $('#cmCam').innerHTML = `<option value="">${pres ? 'Caméra avant' : 'Caméra arrière'}</option>`;
   await cmStartCamera();
   if (code && cm.stream && $('#cmName').value) cmConnect();
 }
@@ -3797,10 +3898,20 @@ function leaveCamMode(){
   $('#camMode').hidden = true; inCamMode = false;
   if (location.hash) history.replaceState(null, '', location.pathname + location.search);
   startRegiePeer();
-  if (!sources.length) camMessage("Le décor et l'habillage sont prêts. Activez la caméra placée face au fond vert.", true);
+  if (!sources.length) camMessage("La régie est prête. Connectez l'iPad présentateur (fond vert) et les iPad caméras : scannez les QR codes de l'onglet Caméra.", true);
 }
-$('#camModeBtn').onclick = () => enterCamMode();
-$('#cmBack').onclick = leaveCamMode;
+/* ---------- rôle de l'appareil : régie, présentateur ou caméra ---------- */
+const ROLE_KEY = STORE + '-role';
+function showRolePick(){ $('#rolePick').hidden = false; }
+function chooseRole(r){
+  try { localStorage.setItem(ROLE_KEY, r); } catch (e) {}
+  $('#rolePick').hidden = true;
+  if (r === 'regie') { if (inCamMode) leaveCamMode(); else startRegiePeer(); }
+  else enterCamMode('', r);
+}
+$$('#rolePick .role').forEach(b => b.onclick = () => chooseRole(b.dataset.role));
+$('#camModeBtn').onclick = showRolePick;
+$('#cmBack').onclick = () => { leaveCamMode(); showRolePick(); };
 $('#cmGo').onclick = cmConnect;
 $('#cmToggle').onclick = () => cmPanel(true);
 $('#cmCam').onchange = cmStartCamera;
@@ -4027,12 +4138,13 @@ function refreshPrompter(){
     v.stage.classList.toggle('mirror', !!S.prompter.mirror);
   }
   $('#pfSpeed').textContent = S.prompter.speed;
+  sendPrompter();
   $('#pfPlay').textContent = P.playing ? '❚❚ Pause' : '▶ Lecture';
 }
 function sectionTops(){ const v = views()[0]; return v ? Array.from(v.text.querySelectorAll('section')).map(s => s.offsetTop) : []; }
-function prompterJump(i){ const tops = sectionTops(); if (tops[i] != null) P.pos = tops[i]; }
+function prompterJump(i){ const tops = sectionTops(); if (tops[i] != null) P.pos = tops[i]; sendPrompter({jump: i}); }
 function prompterStep(dir){
-  const tops = sectionTops(); if (!tops.length) return;
+  const tops = sectionTops(); if (!tops.length) { activate(S.active + dir); return; }
   let cur = 0; tops.forEach((t,i) => { if (t <= P.pos + 5) cur = i; });
   const n = clamp(cur + dir, 0, tops.length - 1);
   if (n < S.rundown.length) activate(n, false); P.pos = tops[n];
@@ -4044,7 +4156,7 @@ function prompterAction(a){
   else if (a === 'slower') p.speed = Math.max(10, p.speed - 10);
   else if (a === 'bigger') p.size = Math.min(110, p.size + 4);
   else if (a === 'smaller') p.size = Math.max(28, p.size - 4);
-  else if (a === 'top') { P.pos = 0; P.playing = false; }
+  else if (a === 'top') { P.pos = 0; P.playing = false; sendPrompter({jump: 0}); }
   else if (a === 'prev') prompterStep(-1);
   else if (a === 'next') prompterStep(1);
   else if (a === 'rec') toggleRec();
@@ -4252,7 +4364,8 @@ $('#qLower').onclick = toggleLower; $('#qIllus').onclick = toggleIllus; $('#qTic
 $('#qIntro').onclick = startIntro; $('#introBtn').onclick = startIntro;
 $('#qPrev').onclick = () => activate(S.active - 1); $('#qNext').onclick = () => activate(S.active + 1);
 $('#addSujet').onclick = () => { S.rundown.push({title:'Nouveau sujet', sub:'', text:'', img:null}); save(); renderRundown(); refreshPrompter(); syncQuick(); };
-$('#camStart').onclick = startCamera; $('#camStart2').onclick = startCamera;
+$('#camStart').onclick = startCamera;
+$('#camStart2').onclick = () => { document.querySelector('.tabs button[data-tab="cam"]').click(); $('#netSection').scrollIntoView({behavior:'smooth', block:'start'}); };
 $('#camSel').onchange = () => { S.cam.deviceId = $('#camSel').value; save(); if (camStream) startCamera(); };
 $('#pickBtn').onclick = () => setPicking(!picking);
 $('#posLeft').onclick = () => { S.person.x = -.45; S.person.scale = 1; S.person.y = 0; save(); syncInputs(); };
@@ -4355,13 +4468,15 @@ if (document.fonts && document.fonts.load) {
     new Promise(r => setTimeout(r, 1500))
   ]).catch(()=>{}).then(startLoop);
 } else startLoop();
-if (!navigator.mediaDevices?.getUserMedia) camMessage("Ce navigateur bloque la caméra pour cette page. Sur ordinateur, ouvrez le fichier avec Google Chrome. Sur iPad, la page doit être hébergée en https.", false);
-else listCams().catch(()=>{});
+if (navigator.mediaDevices?.getUserMedia) listCams().catch(()=>{});
 syncProfName();
 {
-  const m = location.hash.match(/^#cam(?:-([A-Za-z0-9]{5}))?$/);
-  if (m) enterCamMode(m[1] ? m[1].toUpperCase() : '');
-  else startRegiePeer();
+  const m = location.hash.match(/^#(cam|presentateur)(?:-([A-Za-z0-9]{5}))?$/);
+  let saved = null; try { saved = localStorage.getItem(ROLE_KEY); } catch (e) {}
+  if (m) { const r = m[1] === 'presentateur' ? 'presenter' : 'camera'; try { localStorage.setItem(ROLE_KEY, r); } catch (e) {} enterCamMode(m[2] ? m[2].toUpperCase() : '', r); }
+  else if (location.hash === '#regie' || saved === 'regie') { try { localStorage.setItem(ROLE_KEY, 'regie'); } catch (e) {} startRegiePeer(); }
+  else if (saved === 'presenter' || saved === 'camera') enterCamMode('', saved);
+  else { renderQR(); showRolePick(); }
 }
 })();
 </script>
