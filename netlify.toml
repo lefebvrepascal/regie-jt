@@ -1,3 +1,9 @@
-# Site statique : pas d'étape de construction, la racine du dépôt est publiée telle quelle.
+# Site statique (racine publiée telle quelle) + deux fonctions Netlify :
+#   /api/signal  mise en relation des iPad en HTTPS (remplace le WebSocket de PeerJS)
+#   /api/ice     serveurs STUN / TURN (relais d'image pour les Wi-Fi qui isolent les appareils)
 [build]
   publish = "."
+
+[functions]
+  directory = "netlify/functions"
+  node_bundler = "esbuild"

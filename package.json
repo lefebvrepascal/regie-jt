@@ -1,0 +1,10 @@
+{
+  "name": "regie-jt",
+  "version": "1.2.0",
+  "private": true,
+  "description": "Régie JT — fonctions Netlify de mise en relation (réseaux scolaires filtrés)",
+  "type": "module",
+  "dependencies": {
+    "@netlify/blobs": "^10.7.13"
+  }
+}

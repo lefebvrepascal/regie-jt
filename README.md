@@ -43,7 +43,17 @@ Conçue au **Collège du Sacré-Cœur de Halluin** pour le cours d'iPad de 6e. F
 2. Onglet **Caméra** : scannez le QR code **Présentateur** avec l'iPad placé face à l'élève, puis le QR code **Caméras** avec les autres iPad.
 3. Réglez le fond vert du présentateur (pipette, tolérance), préparez le **Conducteur**, lancez le prompteur (Espace) et **● REC**.
 
-> Les appareils doivent avoir accès à internet pour se trouver (service de mise en relation PeerJS) ; l'image passe ensuite directement d'un appareil à l'autre. Si le Wi-Fi isole les appareils entre eux (« isolation des clients »), l'image n'arrive pas : utilisez un réseau dédié au studio.
+> Les appareils se trouvent grâce aux fonctions Netlify du site (`/api/signal`), en HTTPS ordinaire : cela fonctionne sur les réseaux scolaires filtrés. L'image passe ensuite directement d'un appareil à l'autre, ou par un relais TURN si le Wi-Fi isole les appareils (voir « Réseau du collège »). Le bouton **Tester le réseau** donne un diagnostic en clair.
+
+### Réseau du collège (Wi-Fi filtré, isolation des appareils)
+
+| Problème | Ce que fait la régie |
+| --- | --- |
+| WebSocket ou serveur PeerJS bloqué | Mise en relation par `/api/signal` (fonction Netlify + Netlify Blobs), en requêtes HTTPS vers le site lui-même. Aucun réglage. |
+| Wi-Fi qui isole les appareils (« connectée » mais sans image) | Relais TURN via `/api/ice`. À activer une fois : créez une clé TURN gratuite sur Cloudflare (*Realtime › TURN Server*), puis dans Netlify (*Project configuration › Environment variables*) ajoutez `CF_TURN_KEY_ID` et `CF_TURN_API_TOKEN`, et relancez un déploiement. Autre serveur TURN : `TURN_URLS`, `TURN_USERNAME`, `TURN_CREDENTIAL`. |
+| Tout est bloqué | Partage de connexion d'un téléphone ou mini-routeur 4G pour le studio. |
+
+Pour forcer l'ancien fonctionnement : ajoutez `?signal=peerjs` à l'adresse de la régie **et** des iPad.
 
 ### Raccourcis clavier (régie)
 
@@ -60,7 +70,7 @@ Conçue au **Collège du Sacré-Cœur de Halluin** pour le cours d'iPad de 6e. F
 
 ## Héberger votre propre copie
 
-L'application est un **site statique** : un seul fichier `index.html`, sans construction ni dépendance (les bibliothèques sont intégrées). Elle doit être servie en **https** pour que les iPad aient accès à la caméra.
+L'application est un **site statique** : un seul fichier `index.html` (bibliothèques intégrées), plus deux petites fonctions Netlify pour la mise en relation sur les réseaux filtrés. Elle doit être servie en **https** pour que les iPad aient accès à la caméra.
 
 **GitHub Pages**
 1. *Settings › Pages › Build and deployment* : source **Deploy from a branch**, branche `main`, dossier `/ (root)`.
@@ -89,7 +99,7 @@ Le relais n'écoute que sur l'ordinateur lui-même (127.0.0.1) et n'accepte que 
 ## Confidentialité et droit à l'image
 
 - **Aucune donnée n'est envoyée à un serveur du projet.** Réglages, conducteur et images restent dans le navigateur (stockage local) ; les vidéos importées et les enregistrements restent dans la page jusqu'à leur téléchargement.
-- Entre la régie et les iPad caméras, l'image circule **directement** (WebRTC) ; seul l'échange initial passe par le serveur public de PeerJS.
+- Entre la régie et les iPad caméras, l'image circule **directement** (WebRTC), ou chiffrée par le relais TURN s'il est activé ; l'échange initial passe par les fonctions Netlify du site (messages techniques effacés après lecture, 60 s au plus).
 - Filmer et surtout **diffuser des mineurs** demande l'autorisation écrite des familles, en précisant les supports (ENT, réseaux sociaux). La régie impose de cocher cette confirmation avant tout direct.
 
 ---
@@ -99,7 +109,9 @@ Le relais n'écoute que sur l'ordinateur lui-même (127.0.0.1) et n'accepte que 
 ```
 index.html            l'application complète (HTML, CSS, JS, PeerJS et générateur de QR intégrés)
 _headers              en-têtes Netlify (autorisation caméra / micro)
-netlify.toml          publication de la racine, sans build
+netlify.toml          publication de la racine + dossier des fonctions
+package.json          dépendance des fonctions (@netlify/blobs)
+netlify/functions/    signal.mjs (mise en relation HTTPS) et ice.mjs (STUN / TURN)
 .nojekyll             pour GitHub Pages
 relais/               relais RTMP pour le direct (Node.js + ffmpeg)
 docs/                 captures d'écran
