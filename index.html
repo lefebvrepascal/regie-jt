@@ -233,6 +233,14 @@ body.is-live .btn.live{background:#7c3aed;border-color:#7c3aed;color:#fff;animat
 .cm-vu{height:8px;border-radius:4px;background:#0b0e13;overflow:hidden}
 .cm-vu i{display:block;height:100%;width:0;background:var(--ok);transition:width .08s linear}
 .cm-status{margin:0;font-size:14px;color:#c6cfdb}
+.cm-panel{max-height:calc(100% - 32px);overflow:auto}
+.diag-box{margin:8px 0 4px}.diag{list-style:none;margin:0;padding:0;display:grid;gap:4px}
+.diag li{display:flex;gap:8px;align-items:baseline;font-size:13px;line-height:1.35;padding:5px 8px;border-radius:6px;background:rgba(255,255,255,.04)}
+.diag li::before{content:'•';font-weight:800;width:12px;flex:0 0 12px;text-align:center}
+.diag li.ok::before{content:'✓';color:var(--ok)}.diag li.ko::before{content:'✕';color:var(--rec)}.diag li.mid::before{content:'–';color:var(--warn)}
+.diag li{flex-wrap:wrap}.diag li b{flex:0 0 auto;font-weight:600}.diag li span{opacity:.8;flex:1 1 150px}
+.diag-v{margin:8px 0 0;padding:8px 10px;border-radius:8px;font-size:13.5px;line-height:1.4;border:1px solid rgba(255,255,255,.15)}
+.diag-v.ok{border-color:rgba(47,214,123,.5);background:rgba(47,214,123,.08)}.diag-v.ko{border-color:rgba(255,59,48,.5);background:rgba(255,59,48,.08)}.diag-v.mid{border-color:rgba(255,176,32,.5);background:rgba(255,176,32,.08)}
 .cm-toggle{position:absolute;left:16px;bottom:calc(16px + env(safe-area-inset-bottom,0px));z-index:2}
 
 .hidden-media{position:absolute;width:2px;height:2px;opacity:0;pointer-events:none;left:0;top:0}
@@ -345,6 +353,8 @@ body.is-live .btn.live{background:#7c3aed;border-color:#7c3aed;color:#fff;animat
         </div>
         <p class="note">« Prévenir » (ou Maj + chiffre) affiche un décompte orange sur l'iPad caméra : son opérateur se prépare avant que vous la mettiez à l'antenne.</p>
         <p class="note" id="netNote">Les deux appareils doivent avoir accès à internet pour se trouver ; l'image passe ensuite directement par le réseau du collège.</p>
+        <div class="row"><button class="btn sm" id="netTestBtn" type="button">Tester le réseau</button><span class="note">Vérifie que les iPad pourront se connecter sur ce Wi-Fi (wifipedago…).</span></div>
+        <div class="diag-box" id="netDiag" hidden></div>
 
         <h3>Caméra à l'antenne : <span id="profName" style="color:var(--fg);text-transform:none;letter-spacing:0">aucune</span></h3>
         <p class="note">Les réglages ci-dessous sont mémorisés pour chaque caméra.</p>
@@ -548,6 +558,8 @@ body.is-live .btn.live{background:#7c3aed;border-color:#7c3aed;color:#fff;animat
     <div class="cm-vu" aria-hidden="true"><i id="cmVu"></i></div>
     <div class="row"><button class="btn primary" id="cmGo">Se connecter à la régie</button><button class="btn ghost" id="cmBack">Changer de rôle</button></div>
     <p class="cm-status" id="cmStatus">Choisissez l'objectif, saisissez le code affiché sur la régie.</p>
+    <button class="btn ghost sm" id="cmTest" type="button">Tester le réseau</button>
+    <div class="diag-box" id="cmDiag" hidden></div>
   </div>
   <button class="btn sm cm-toggle" id="cmToggle" hidden>Réglages</button>
 </div>
@@ -3614,7 +3626,188 @@ function updateCues(now){
 const CODE_ALPHA = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
 function genCode(){ const r = crypto.getRandomValues(new Uint32Array(5)); return Array.from(r, x => CODE_ALPHA[x % CODE_ALPHA.length]).join(''); }
 const peerIdFor = code => 'jt-sacrecoeur-regie-' + code.toLowerCase();
-const PEER_OPTS = () => Object.assign({debug:0}, window.JT_PEER_OPTS || {});
+/* ===== Réseau (v1.2) : mise en relation en HTTPS + relais d'image TURN =====
+   Sur les réseaux scolaires filtrés, le WebSocket du serveur public PeerJS est souvent bloqué
+   et le Wi-Fi isole les appareils. La régie passe donc par ses propres fonctions Netlify :
+   /api/signal (mise en relation par requêtes HTTPS, comme une page web ordinaire) et
+   /api/ice (serveurs STUN/TURN : l'image peut transiter par un relais sur le port 443). */
+const NET = { mode: null, base: '', ice: null, turn: false, ready: null };
+const NET_STUN = [{urls: ['stun:stun.cloudflare.com:3478', 'stun:stun.l.google.com:19302']}];
+const NativeWS = window.WebSocket;
+const rid = (n = 10) => Array.from(crypto.getRandomValues(new Uint8Array(n)), x => 'abcdefghijklmnopqrstuvwxyz0123456789'[x % 36]).join('');
+const fetchT = (u, o = {}, ms = 6000) => { const c = new AbortController(), t = setTimeout(() => c.abort(), ms); return fetch(u, Object.assign({}, o, {signal: c.signal})).finally(() => clearTimeout(t)); };
+const netBases = () => { const on = (() => { try { return new URL(ONLINE_URL).origin; } catch (e) { return ''; } })();
+  return [...new Set([location.protocol === 'https:' ? location.origin : '', on].filter(Boolean))]; };
+function netPrepare(force){
+  if (NET.ready && !force) return NET.ready;
+  NET.ready = (async () => {
+    let pref = '';
+    try { pref = new URLSearchParams(location.search).get('signal') || localStorage.getItem(STORE + '-signal') || ''; } catch (e) {}
+    NET.mode = null; NET.base = '';
+    for (const b of netBases()) {
+      try { const j = await (await fetchT(b + '/api/signal', {cache: 'no-store'}, 5000)).json(); if (j && j.service === 'regie-jt-signal') { NET.base = b; break; } } catch (e) {}
+    }
+    NET.mode = NET.base && pref !== 'peerjs' ? 'https' : 'peerjs';
+    NET.ice = null; NET.turn = false;
+    if (NET.base) try { const j = await (await fetchT(NET.base + '/api/ice', {cache: 'no-store'}, 6000)).json(); if (j && Array.isArray(j.iceServers) && j.iceServers.length) { NET.ice = j.iceServers; NET.turn = !!j.turn; } } catch (e) {}
+    if (!NET.ice) NET.ice = NET_STUN;
+    updateNetNote();
+    return NET;
+  })();
+  return NET.ready;
+}
+function updateNetNote(){
+  const n = document.getElementById('netNote'); if (!n) return;
+  n.textContent = NET.mode === 'https'
+    ? (NET.turn ? "Mise en relation sécurisée (HTTPS) et relais d'image actif : la régie fonctionne aussi sur les réseaux filtrés (wifipedago), même si le Wi-Fi isole les appareils."
+                : "Mise en relation sécurisée (HTTPS) : fonctionne sur les réseaux filtrés. Si une caméra reste « connectée » sans image, le Wi-Fi isole les appareils : activez le relais d'image (voir le guide) ou lancez « Tester le réseau ».")
+    : "Les appareils doivent avoir accès à internet pour se trouver ; l'image passe ensuite directement par le réseau du collège.";
+}
+/* Faux WebSocket pour PeerJS : chaque échange devient une requête HTTPS vers /api/signal. */
+class JTSignalSocket {
+  constructor(url){
+    const u = new URL(String(url).replace(/^wss?:/, 'https:'));
+    this.id = u.searchParams.get('id'); this.token = u.searchParams.get('token');
+    this.readyState = 0; this.out = []; this.opened = false; this.fails = 0;
+    this.idle = /regie/.test(this.id) ? 1500 : 3000; this.fast = Date.now() + 30000;
+    this.onopen = this.onmessage = this.onclose = this.onerror = null;
+    this.t = setTimeout(() => this.tick(), JTSignalSocket.backoff || 0);
+  }
+  send(s){
+    if (this.readyState !== 1) return;
+    let m; try { m = JSON.parse(s); } catch (e) { return; }
+    if (!m || m.type === 'HEARTBEAT') return;
+    this.out.push(m); this.fast = Date.now() + 30000;
+    if (this.busy) this.again = true; else { clearTimeout(this.t); this.t = setTimeout(() => this.tick(), 15); }
+  }
+  close(){
+    if (this.readyState >= 2) return;
+    this.readyState = 3; clearTimeout(this.t);
+    try { fetch(NET.base + '/api/signal', {method: 'POST', headers: {'content-type': 'application/json'}, body: JSON.stringify({id: this.id, token: this.token, leave: true}), keepalive: true}).catch(() => {}); } catch (e) {}
+  }
+  emit(m){ if (this.onmessage) this.onmessage({data: JSON.stringify(m)}); }
+  async tick(){
+    if (this.readyState >= 2) return;
+    this.busy = true;
+    const out = this.out.splice(0), first = !this.opened;
+    try {
+      const r = await fetchT(NET.base + '/api/signal', {method: 'POST', headers: {'content-type': 'application/json'}, cache: 'no-store',
+        body: JSON.stringify({id: this.id, token: this.token, out, open: first || undefined})}, 9000);
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      const j = await r.json();
+      this.fails = 0; JTSignalSocket.backoff = 0;
+      if (this.readyState >= 2) return;
+      if (first) {
+        this.opened = true; this.readyState = 1;
+        const taken = (j.in || []).some(m => m.type === 'ID-TAKEN');
+        if (this.onopen) this.onopen();
+        if (!taken) this.emit({type: 'OPEN'});
+      }
+      if ((j.in || []).length) this.fast = Date.now() + 30000;
+      for (const m of j.in || []) this.emit(m);
+    } catch (e) {
+      this.out.unshift(...out); this.fails++;
+      if (this.fails >= (first ? 3 : 5)) {
+        JTSignalSocket.backoff = Math.min(15000, (JTSignalSocket.backoff || 1000) * 2);
+        this.readyState = 3; this.busy = false;
+        if (this.onclose) this.onclose({code: 1006, reason: 'signal unreachable'});
+        return;
+      }
+    }
+    this.busy = false;
+    if (this.readyState >= 2) return;
+    const d = this.again || this.out.length ? 15 : this.fails ? 1000 * this.fails : Date.now() < this.fast ? 400 : this.idle;
+    this.again = false;
+    this.t = setTimeout(() => this.tick(), d);
+  }
+}
+window.WebSocket = function(url, protocols){
+  if (String(url).indexOf('jt-signal.invalid') !== -1) return new JTSignalSocket(url);
+  return protocols === undefined ? new NativeWS(url) : new NativeWS(url, protocols);
+};
+Object.assign(window.WebSocket, {CONNECTING: 0, OPEN: 1, CLOSING: 2, CLOSED: 3, prototype: NativeWS.prototype});
+
+/* Test réseau : dit en clair si les iPad pourront se connecter sur ce Wi-Fi. */
+function gatherIce(iceServers, ms = 8000){
+  return new Promise(res => {
+    const c = [];
+    let pc; try { pc = new RTCPeerConnection({iceServers}); } catch (e) { return res(c); }
+    const done = () => { clearTimeout(t); try { pc.close(); } catch (e) {} res(c); };
+    const t = setTimeout(done, ms);
+    pc.onicecandidate = e => { if (!e.candidate) return done(); const s = e.candidate.candidate || ''; if (s) c.push({type: (s.match(/ typ (\w+)/) || [])[1], proto: (e.candidate.relayProtocol || (e.candidate.url || '').match(/transport=(\w+)/)?.[1] || (/^turns:/.test(e.candidate.url || '') ? 'tls' : '') || (s.split(' ')[2] || '')).toLowerCase(), url: e.candidate.url || ''}); };
+    pc.createDataChannel('t');
+    pc.createOffer().then(o => pc.setLocalDescription(o)).catch(done);
+  });
+}
+function relayLoopback(iceServers, ms = 12000){
+  return new Promise(res => {
+    let a, b, t;
+    const end = ok => { clearTimeout(t); try { a.close(); b.close(); } catch (e) {} res(ok); };
+    try { a = new RTCPeerConnection({iceServers, iceTransportPolicy: 'relay'}); b = new RTCPeerConnection({iceServers, iceTransportPolicy: 'relay'}); } catch (e) { return res(false); }
+    t = setTimeout(() => end(false), ms);
+    a.onicecandidate = e => e.candidate && b.addIceCandidate(e.candidate).catch(() => {});
+    b.onicecandidate = e => e.candidate && a.addIceCandidate(e.candidate).catch(() => {});
+    b.ondatachannel = e => { e.channel.onmessage = m => { if (m.data === 'ping') e.channel.send('pong'); }; };
+    const dc = a.createDataChannel('t');
+    dc.onopen = () => dc.send('ping');
+    dc.onmessage = m => end(m.data === 'pong');
+    a.createOffer().then(o => a.setLocalDescription(o)).then(() => b.setRemoteDescription(a.localDescription))
+      .then(() => b.createAnswer()).then(o => b.setLocalDescription(o)).then(() => a.setRemoteDescription(b.localDescription)).catch(() => end(false));
+  });
+}
+async function netDiag(box, btn){
+  if (!box) return;
+  const rows = []; let verdict = '', vclass = '';
+  const esc = s => String(s).replace(/[&<>"]/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;'}[c]));
+  const render = () => { box.innerHTML = '<ul class="diag">' + rows.map(r => `<li class="${r.ok === true ? 'ok' : r.ok === false ? 'ko' : 'mid'}"><b>${esc(r.t)}</b><span>${esc(r.d)}</span></li>`).join('')
+    + (verdict ? '' : '<li class="mid"><b>Test en cours…</b><span>une vingtaine de secondes</span></li>') + '</ul>' + (verdict ? `<p class="diag-v ${vclass}">${esc(verdict)}</p>` : ''); };
+  const add = (ok, t, d) => { rows.push({ok, t, d}); render(); };
+  box.hidden = false; if (btn) btn.disabled = true; render();
+  await netPrepare(true);
+  // 1. Mise en relation HTTPS
+  let sig = false;
+  if (NET.base) {
+    const id = 'diag' + rid(8), token = rid(10), t0 = performance.now();
+    try {
+      const j = await (await fetchT(NET.base + '/api/signal', {method: 'POST', headers: {'content-type': 'application/json'}, cache: 'no-store',
+        body: JSON.stringify({id, token, open: true, out: [{type: 'CANDIDATE', dst: id, payload: {test: 1}}]})}, 8000)).json();
+      sig = (j.in || []).some(m => m.type === 'CANDIDATE');
+      add(sig, 'Mise en relation (HTTPS)', sig ? `fonctionne (${Math.round(performance.now() - t0)} ms)` : 'réponse inattendue du service');
+      fetch(NET.base + '/api/signal', {method: 'POST', headers: {'content-type': 'application/json'}, body: JSON.stringify({id, token, leave: true})}).catch(() => {});
+    } catch (e) { add(false, 'Mise en relation (HTTPS)', 'service injoignable'); }
+  } else add(false, 'Mise en relation (HTTPS)', 'service injoignable depuis ce réseau');
+  // 2. Serveur public PeerJS (pour information)
+  const ws = await new Promise(res => {
+    let w; const t = setTimeout(() => { try { w.close(); } catch (e) {} res(false); }, 5000);
+    try { w = new NativeWS(`wss://0.peerjs.com/peerjs?key=peerjs&id=diag${rid(8)}&token=${rid(8)}&version=1.5.5`);
+      w.onmessage = () => { clearTimeout(t); try { w.close(); } catch (e) {} res(true); };
+      w.onerror = () => { clearTimeout(t); res(false); }; } catch (e) { clearTimeout(t); res(false); }
+  });
+  add(ws ? true : sig ? null : false, 'Serveur public PeerJS (WebSocket)', ws ? 'accessible' : sig ? 'bloqué par le réseau — sans conséquence, la mise en relation HTTPS le remplace' : 'bloqué par le réseau');
+  // 3. Chemins possibles pour l'image
+  const c = await gatherIce(NET.ice);
+  const host = c.filter(x => x.type === 'host').length, srflx = c.filter(x => x.type === 'srflx').length;
+  const relays = c.filter(x => x.type === 'relay'), relayKinds = [...new Set(relays.map(x => x.proto).filter(Boolean))];
+  add(host > 0 ? true : null, 'Réseau local', host ? 'adresse locale obtenue' : 'adresse masquée par le navigateur (normal sur iPad)');
+  add(srflx > 0 ? true : null, 'Internet en UDP (STUN)', srflx ? 'ouvert' : 'fermé ou filtré');
+  let relayOk = false;
+  if (!NET.turn) add(null, "Relais d'image (TURN)", "non configuré — à activer si les caméras restent sans image (voir le guide)");
+  else if (!relays.length) add(false, "Relais d'image (TURN)", 'configuré mais bloqué par le filtrage');
+  else {
+    add(true, "Relais d'image (TURN)", 'joignable (' + (relayKinds.join(', ').toUpperCase() || 'OK') + ')');
+    relayOk = await relayLoopback(NET.ice);
+    add(relayOk, "Passage d'une image par le relais", relayOk ? 'réussi' : 'échec');
+  }
+  if (!sig && !ws) { verdict = "Les appareils ne peuvent pas se trouver sur ce réseau. Solution sans le service informatique : partage de connexion d'un téléphone, ou mini-routeur 4G dédié au studio."; vclass = 'ko'; }
+  else if (relayOk) { verdict = "Prêt : les iPad pourront se connecter sur ce réseau, même si le Wi-Fi isole les appareils entre eux."; vclass = 'ok'; }
+  else if (NET.turn) { verdict = "La mise en relation fonctionne, mais le relais d'image est bloqué. Si les caméras restent sans image, utilisez le partage de connexion d'un téléphone ou un mini-routeur 4G."; vclass = 'mid'; }
+  else { verdict = "La mise en relation fonctionne. Si une caméra apparaît « connectée » sans image, le Wi-Fi isole les appareils : activez le relais d'image TURN (gratuit, 10 minutes, voir le guide)."; vclass = 'mid'; }
+  render(); if (btn) btn.disabled = false;
+}
+
+const PEER_OPTS = () => Object.assign({debug:0, config:{iceServers: NET.ice || NET_STUN}},
+  NET.mode === 'https' ? {host:'jt-signal.invalid', port:443, secure:true, path:'/', key:'peerjs', pingInterval:25000} : {},
+  window.JT_PEER_OPTS || {});
 let REGIE_CODE;
 try { REGIE_CODE = localStorage.getItem(STORE + '-code'); if (!/^[A-Z0-9]{5}$/.test(REGIE_CODE || '')) { REGIE_CODE = genCode(); localStorage.setItem(STORE + '-code', REGIE_CODE); } }
 catch (e) { REGIE_CODE = genCode(); }
@@ -3665,8 +3858,9 @@ function startRegiePeer(){
   if (inCamMode || regiePeer) return;
   if (typeof Peer !== 'function') { setNet('Module réseau absent', 'off'); return; }
   setNet('Connexion…', 'warn');
+  if (!NET.mode) { if (!NET.ready) netPrepare().then(() => startRegiePeer()); return; }
   const peer = regiePeer = new Peer(peerIdFor(REGIE_CODE), PEER_OPTS());
-  peer.on('open', () => setNet('Prête à recevoir', 'on'));
+  peer.on('open', () => setNet(NET.turn ? 'Prête · relais actif' : 'Prête à recevoir', 'on'));
   peer.on('connection', conn => {
     conns[conn.peer] = conn;
     conn.on('open', () => { const s = sources.find(x => x.id === 'r:' + conn.peer); if (s) { s.conn = conn; sendTally(); sendPrompter(); } });
@@ -3688,11 +3882,11 @@ function startRegiePeer(){
     call.on('error', () => removeSource(id));
     watchIce(call, id, label);
   });
-  peer.on('disconnected', () => { if (regiePeer !== peer) return; setNet('Reconnexion…', 'warn'); setTimeout(() => { try { if (!peer.destroyed) peer.reconnect(); } catch (e) {} }, 1500); });
+  peer.on('disconnected', () => { if (regiePeer !== peer || peer._jtTaken) return; setNet('Reconnexion…', 'warn'); setTimeout(() => { try { if (!peer.destroyed) peer.reconnect(); } catch (e) {} }, 1500); });
   peer.on('error', err => {
     if (regiePeer !== peer) return;
     const t = err && err.type;
-    if (t === 'unavailable-id') setNet('Code déjà utilisé', 'off'), toast("Cette régie est déjà ouverte ailleurs (autre onglet ou appareil). Fermez l'autre fenêtre puis rechargez.");
+    if (t === 'unavailable-id') peer._jtTaken = true, setNet('Code déjà utilisé', 'off'), toast("Cette régie est déjà ouverte ailleurs (autre onglet ou appareil). Fermez l'autre fenêtre puis rechargez.");
     else if (t === 'network' || t === 'server-error' || t === 'socket-error' || t === 'socket-closed') setNet('Pas de connexion internet', 'off');
     else if (t === 'browser-incompatible') setNet('Navigateur incompatible', 'off');
   });
@@ -3841,9 +4035,10 @@ function cmConnect(){
   if (!cm.stream) { cmStatus("La caméra n'est pas encore prête."); return; }
   const name = $('#cmName').value.trim() || (cm.role === 'presenter' ? 'Présentateur' : 'iPad caméra');
   try { localStorage.setItem(STORE + '-camname-' + cm.role, name); localStorage.setItem(STORE + '-camcode', code); } catch (e) {}
+  if (!NET.mode) { cmStatus('Préparation du réseau…'); netPrepare().then(() => cmConnect()); return; }
   cmDisconnect();
   cmStatus('Connexion à la régie ' + code + '…');
-  const peer = cm.peer = new Peer(PEER_OPTS());
+  const peer = cm.peer = new Peer('jt-sc-' + (cm.role === 'presenter' ? 'pres' : 'cam') + '-' + rid(10), PEER_OPTS());
   peer.on('open', () => {
     const target = peerIdFor(code);
     const conn = cm.conn = peer.connect(target, {metadata:{name, role: cm.role}, reliable:true});
@@ -3913,6 +4108,8 @@ $$('#rolePick .role').forEach(b => b.onclick = () => chooseRole(b.dataset.role))
 $('#camModeBtn').onclick = showRolePick;
 $('#cmBack').onclick = () => { leaveCamMode(); showRolePick(); };
 $('#cmGo').onclick = cmConnect;
+$('#cmTest').onclick = () => netDiag($('#cmDiag'), $('#cmTest'));
+$('#netTestBtn').onclick = () => netDiag($('#netDiag'), $('#netTestBtn'));
 $('#cmToggle').onclick = () => cmPanel(true);
 $('#cmCam').onchange = cmStartCamera;
 $('#addCamTile').onclick = () => { document.querySelector('.tabs button[data-tab="cam"]').click(); $('#netSection').scrollIntoView({behavior:'smooth', block:'start'}); };
