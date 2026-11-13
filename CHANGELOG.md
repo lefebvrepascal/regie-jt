@@ -1,5 +1,9 @@
 # Historique des versions
 
+## 1.2.1 — novembre 2026
+- **Prompteur de l'iPad présentateur** : la taille du texte s'adapte à l'écran de l'iPad (la taille réglée en régie vaut pour un grand écran). Boutons **A− / A+** sur l'iPad pour l'ajuster, réglage mémorisé sur l'appareil.
+- **Micros des iPad** : le micro d'un iPad (présentateur ou caméra) n'est ouvert que lorsque cet iPad est à l'antenne ; tous les autres sont coupés. Le mode « Son ouvert » est réservé au micro de la régie.
+
 ## 1.2.0 — novembre 2026
 - **Réseaux scolaires filtrés** (ex. wifipedago) : la mise en relation des iPad passe par les fonctions Netlify du site (`/api/signal`), en HTTPS ordinaire, au lieu du WebSocket du serveur public PeerJS souvent bloqué. Retour automatique à PeerJS si les fonctions sont absentes.
 - **Relais d'image TURN** facultatif (`/api/ice`, Cloudflare gratuit jusqu'à 1 000 Go/mois) : l'image passe par internet sur le port 443 quand le Wi-Fi isole les appareils.

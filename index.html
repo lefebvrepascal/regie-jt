@@ -213,6 +213,9 @@ body.is-live .btn.live{background:#7c3aed;border-color:#7c3aed;color:#fff;animat
 .cam-mode.presenter video{inset:auto;top:calc(12px + env(safe-area-inset-top,0px));right:12px;width:min(30vw,260px);height:auto;aspect-ratio:16/9;border:1px solid #333;border-radius:6px;z-index:2}
 .cam-mode .cm-prompt{z-index:0}
 .cam-mode .cm-prompt .pf-marker{top:22%}
+.cm-pfsize{position:absolute;right:12px;bottom:calc(12px + env(safe-area-inset-bottom,0px));z-index:3;display:flex;align-items:center;gap:6px;background:rgba(15,18,24,.85);border:1px solid var(--line);border-radius:8px;padding:6px}
+.cm-pfsize .btn{min-width:48px;min-height:40px;background:#151a22}
+.cm-pfsize output{font:600 14px var(--ui);color:#aab4c2;min-width:54px;text-align:center;font-variant-numeric:tabular-nums}
 
 /* Mode caméra (iPad émetteur) */
 .cam-mode{position:fixed;inset:0;z-index:70;background:#000;color:#fff}
@@ -333,7 +336,7 @@ body.is-live .btn.live{background:#7c3aed;border-color:#7c3aed;color:#fff;animat
         </details>
         <h3>Son de la régie</h3>
         <label class="check"><input type="checkbox" id="monitor" data-k="audio.monitor"> Écouter le son du JT en régie (avec un casque, pour éviter l'écho)</label>
-        <p class="note">La régie ne filme pas : l'image et le son viennent de l'iPad présentateur et des iPad caméras. Sous chaque vignette : « Son auto » ouvre le micro de la caméra seulement quand elle est à l'antenne, « Son ouvert » le laisse toujours actif, « Son coupé » le ferme.</p>
+        <p class="note">La régie ne filme pas : l'image et le son viennent de l'iPad présentateur et des iPad caméras. Le micro d'un iPad n'est ouvert que lorsque cet iPad est à l'antenne : les autres sont coupés. Sous chaque vignette : « Son auto » suit l'antenne, « Son coupé » ferme ce micro même à l'antenne.</p>
 
         <h3 id="netSection">iPad présentateur et caméras</h3>
         <div class="net-box">
@@ -546,6 +549,7 @@ body.is-live .btn.live{background:#7c3aed;border-color:#7c3aed;color:#fff;animat
 <div class="cam-mode" id="camMode" hidden>
   <video id="cmVideo" playsinline muted autoplay></video>
   <div class="pf-stage cm-prompt" id="cmPrompt" hidden><div class="pf-marker"></div><div class="pf-text" id="cmPromptText"></div></div>
+  <div class="cm-pfsize" id="cmPfSize" hidden><button class="btn" data-cs="-1" aria-label="Texte du prompteur plus petit">A−</button><output id="cmPfVal">100 %</output><button class="btn" data-cs="1" aria-label="Texte du prompteur plus grand">A+</button></div>
   <div class="cm-tally" id="cmTally">NON CONNECTÉE</div>
   <div class="cm-count" id="cmCount" hidden><b id="cmCountN">10</b><span id="cmCountT">À l'antenne dans</span></div>
   <div class="cm-panel" id="cmPanel">
@@ -3362,7 +3366,13 @@ function setupSourceAudio(s){
   } catch (e) { s.audio = null; }
   applyAudio(); renderMultiview();
 }
-const audioModeOf = s => S.audioModes[s.pkey] || (s.kind === 'local' || s.role === 'presenter' ? 'on' : 'auto');
+/* iPad (présentateur et caméras) : micro ouvert seulement quand l'iPad est à l'antenne,
+   ou coupé. Le mode « ouvert » n'existe que pour le micro de la régie. */
+const audioModeOf = s => {
+  const m = S.audioModes[s.pkey];
+  if (s.kind !== 'local') return m === 'off' ? 'off' : 'auto';
+  return m || 'on';
+};
 const AUDIO_LABEL = {auto:'Son auto', on:'Son ouvert', off:'Son coupé'};
 function applyAudio(){
   if (!AC) return;
@@ -3374,7 +3384,7 @@ function applyAudio(){
   }
 }
 function cycleAudio(s){
-  const next = {auto:'on', on:'off', off:'auto'}[audioModeOf(s)];
+  const next = s.kind !== 'local' ? (audioModeOf(s) === 'off' ? 'auto' : 'off') : {auto:'on', on:'off', off:'auto'}[audioModeOf(s)];
   S.audioModes[s.pkey] = next; save(); applyAudio(); renderMultiview();
   toast(`${s.label} : ${AUDIO_LABEL[next].toLowerCase()}${next === 'auto' ? ' (ouvert seulement quand la caméra est à l’antenne)' : ''}.`);
 }
@@ -3902,12 +3912,37 @@ function stopRegiePeer(){
 const cm = {peer:null, conn:null, call:null, stream:null, wake:null, role:'camera'};
 /* prompteur affiché sur l'iPad présentateur, piloté par la régie */
 const cmP = {sections:[], speed:50, size:52, mirror:false, playing:false, pos:0, last:0, raf:0};
+/* La taille réglée en régie vaut pour un grand écran : sur l'iPad présentateur elle est
+   ramenée à la largeur de l'écran, puis ajustable sur l'iPad lui-même (A− / A+, mémorisé). */
+const CM_PF_KEY = 'jt-sc-cm-pfscale';
+let cmPfScale = 1;
+try { const v = parseFloat(localStorage.getItem(CM_PF_KEY)); if (v >= .4 && v <= 2) cmPfScale = v; } catch (e) {}
+function cmPfSize(){
+  const w = Math.max(320, Math.min(window.innerWidth || 1024, 1600));
+  return Math.round(Math.min(96, Math.max(18, cmP.size * (w / 1600) * .9 * cmPfScale)));
+}
+function cmPfApply(){
+  const el = $('#cmPrompt'); if (!el) return;
+  const txt = $('#cmPromptText'), before = txt.scrollHeight || 1;
+  el.style.setProperty('--pfs', cmPfSize() + 'px');
+  const after = txt.scrollHeight || 1;
+  cmP.pos = cmP.pos * after / before;           // garde la même ligne sous le repère
+  $('#cmPfVal').textContent = Math.round(cmPfScale * 100) + ' %';
+}
+$$('#cmPfSize [data-cs]').forEach(b => b.onclick = e => {
+  e.stopPropagation();
+  cmPfScale = Math.round(Math.min(2, Math.max(.4, cmPfScale + (+b.dataset.cs) * .1)) * 10) / 10;
+  try { localStorage.setItem(CM_PF_KEY, String(cmPfScale)); } catch (err) {}
+  cmPfApply();
+});
+window.addEventListener('resize', () => { if (inCamMode && cm.role === 'presenter') cmPfApply(); });
 function cmPromptRender(){
   const t = $('#cmPromptText');
   t.innerHTML = cmP.sections.length
     ? cmP.sections.map((s, i) => `<section data-i="${i}"><h3>${i+1}. ${esc(s.t || 'Sujet')}</h3>${String(s.x || '').split(/\n+/).filter(Boolean).map(p => `<p>${esc(p)}</p>`).join('')}</section>`).join('') + '<section class="end"><h3>Fin du journal</h3></section>'
     : '<section><h3>Prompteur</h3><p>Le texte du conducteur apparaîtra ici dès la connexion à la régie.</p></section>';
-  $('#cmPrompt').style.setProperty('--pfs', cmP.size + 'px');
+  $('#cmPrompt').style.setProperty('--pfs', cmPfSize() + 'px');
+  $('#cmPfVal').textContent = Math.round(cmPfScale * 100) + ' %';
   $('#cmPrompt').classList.toggle('mirror', cmP.mirror);
 }
 function cmPromptMsg(m){
@@ -4072,6 +4107,7 @@ async function enterCamMode(code, role = 'camera'){
   $('#cmName').placeholder = pres ? 'Présentateur' : 'iPad plateau';
   $('#camMode').classList.toggle('presenter', pres);
   $('#cmPrompt').hidden = !pres;
+  $('#cmPfSize').hidden = !pres;
   if (pres) { cmPromptRender(); cmPromptLoop(); }
   inCamMode = true; stopRegiePeer();
   if (rec) stopRec();
