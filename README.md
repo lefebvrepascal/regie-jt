@@ -19,10 +19,10 @@ Conçue au **Collège du Sacré-Cœur de Halluin** pour le cours d'iPad de 6e. F
 | Décors | 6 plateaux dessinés (plateau TV, rédaction, ville de nuit, météo, stade, fond couleur) ou votre propre image / vidéo |
 | Habillage | Logo ou nom du JT, pastille « EN DIRECT », horloge, bandeau défilant, bandeau titre du sujet, générique animé avec jingle, 6 jeux de couleurs |
 | Conducteur | Sujets avec titre, sous-titre, texte du prompteur et illustration (image ou vidéo MP4, encadrée ou plein écran) affichée dès la mise à l'antenne |
-| Prompteur | Plein écran (iPad face à l'élève) ou fenêtre séparée, vitesse, taille, texte inversé, raccourcis clavier |
+| Prompteur | Plein écran (iPad face à l'élève, taille adaptée à l'écran et réglable A− / A+) ou fenêtre séparée, vitesse, taille, texte inversé, raccourcis clavier |
 | Rôles | Un appareil **régie** (ne filme pas), un **iPad présentateur** (fond vert + prompteur) et des **iPad caméras**, connectés par QR code |
 | Multicaméra | Vignettes en direct, bascule d'un toucher ou touches 1–9, voyant « À l'antenne » sur chaque iPad, bouton **Prévenir** avec décompte |
-| Son | Micro de la régie et micros des iPad, chaque canal en auto / ouvert / coupé, vumètres, écoute au casque |
+| Son | Micro d'un iPad ouvert seulement quand il est à l'antenne (ou coupé), micro de la régie auto / ouvert / coupé, vumètres, écoute au casque |
 | Enregistrement | Vidéo de l'émission complète avec le son (MP4 ou WebM selon le navigateur), téléchargeable |
 | Direct | Facebook, Instagram (format vertical), LinkedIn, YouTube via le relais local `relais/` |
 
