@@ -40,7 +40,7 @@ Conçue au **Collège du Sacré-Cœur de Halluin** pour le cours d'iPad de 6e. F
 | **Caméra** | autres iPad | Plans larges, reportages, interviews, avec la caméra arrière (image plein cadre). |
 
 1. Ouvrez https://regie-jt-sacre-coeur.netlify.app/ sur l'appareil de régie et choisissez **Régie**.
-2. Onglet **Caméra** : scannez le QR code **Présentateur** avec l'iPad placé face à l'élève, puis le QR code **Caméras** avec les autres iPad.
+2. Onglet **Caméra** : scannez le QR code **Présentateur** avec l'iPad placé face à l'élève, puis le QR code **Caméras** avec les autres iPad. Le code de la régie peut être changé avec **Changer le code** (5 lettres ou chiffres) ; les iPad se reconnectent alors avec le nouveau QR code.
 3. Réglez le fond vert du présentateur (pipette, tolérance), préparez le **Conducteur**, lancez le prompteur (Espace) et **● REC**.
 
 > Les appareils se trouvent grâce aux fonctions Netlify du site (`/api/signal`), en HTTPS ordinaire : cela fonctionne sur les réseaux scolaires filtrés. L'image passe ensuite directement d'un appareil à l'autre, ou par un relais TURN si le Wi-Fi isole les appareils (voir « Réseau du collège »). Le bouton **Tester le réseau** donne un diagnostic en clair.

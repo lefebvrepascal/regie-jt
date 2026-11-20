@@ -169,6 +169,9 @@ body.is-rec .pf-rec{color:var(--rec)}
 .net-code{display:flex;flex-direction:column;gap:4px;flex:1;min-width:140px}
 .net-code b{font:700 40px/1 var(--display);letter-spacing:.18em;font-variant-numeric:tabular-nums}
 .net-code .chip{align-self:flex-start}
+.code-edit{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+.code-edit input{width:7.5em;flex:none;font:700 20px/1 var(--display);letter-spacing:.18em;text-transform:uppercase;text-align:center}
+.code-edit .err{color:#ff8a82;font-size:12.5px;flex-basis:100%}
 .chip.warn{color:var(--warn);border-color:rgba(255,176,32,.45)}
 .chip.off{color:#ff8a82;border-color:rgba(255,59,48,.45)}
 .qr{background:#fff;padding:6px;border-radius:6px;line-height:0}
@@ -340,7 +343,18 @@ body.is-live .btn.live{background:#7c3aed;border-color:#7c3aed;color:#fff;animat
 
         <h3 id="netSection">iPad présentateur et caméras</h3>
         <div class="net-box">
-          <div class="net-code"><span class="note">Code de la régie</span><b id="regieCode">·····</b><span class="chip" id="netChip">Hors ligne</span></div>
+          <div class="net-code"><span class="note">Code de la régie</span><b id="regieCode">·····</b><span class="chip" id="netChip">Hors ligne</span>
+            <button class="btn sm ghost" id="codeEditBtn" type="button" style="align-self:flex-start" title="Choisir un autre code d'accès pour les iPad">Changer le code</button>
+            <div id="codeEditBox" hidden>
+              <div class="code-edit">
+                <input type="text" id="codeEditInput" maxlength="5" autocapitalize="characters" autocomplete="off" spellcheck="false" placeholder="5 car." aria-label="Nouveau code de la régie">
+                <button class="btn sm primary" id="codeEditOk" type="button">Valider</button>
+                <button class="btn sm" id="codeEditRnd" type="button" title="Tirer un code au hasard">Au hasard</button>
+                <button class="btn sm ghost" id="codeEditCancel" type="button">Annuler</button>
+                <span class="err" id="codeEditErr" hidden></span>
+              </div>
+              <p class="note">5 lettres ou chiffres. Les iPad déjà connectés seront déconnectés : ils devront scanner le nouveau QR code ou saisir le nouveau code.</p>
+            </div></div>
           <figure class="qr-fig"><div class="qr" id="qrPres" hidden></div><figcaption>Présentateur</figcaption></figure>
           <figure class="qr-fig"><div class="qr" id="qrBox" hidden></div><figcaption>Caméras</figcaption></figure>
         </div>
@@ -3896,11 +3910,36 @@ function startRegiePeer(){
   peer.on('error', err => {
     if (regiePeer !== peer) return;
     const t = err && err.type;
-    if (t === 'unavailable-id') peer._jtTaken = true, setNet('Code déjà utilisé', 'off'), toast("Cette régie est déjà ouverte ailleurs (autre onglet ou appareil). Fermez l'autre fenêtre puis rechargez.");
+    if (t === 'unavailable-id') peer._jtTaken = true, setNet('Code déjà utilisé', 'off'), toast("Ce code est déjà utilisé par une régie ouverte ailleurs (autre onglet ou appareil). Fermez l'autre fenêtre, ou choisissez un autre code avec « Changer le code ».");
     else if (t === 'network' || t === 'server-error' || t === 'socket-error' || t === 'socket-closed') setNet('Pas de connexion internet', 'off');
     else if (t === 'browser-incompatible') setNet('Navigateur incompatible', 'off');
   });
 }
+/* changement du code d'accès des iPad (rôle régie) */
+function setRegieCode(code){
+  code = String(code || '').trim().toUpperCase().replace(/[^A-Z0-9]/g, '');
+  if (!/^[A-Z0-9]{5}$/.test(code)) return 'Le code doit faire exactement 5 lettres ou chiffres.';
+  if (code === REGIE_CODE) return '';
+  const wasOn = !!regiePeer;
+  REGIE_CODE = code;
+  try { localStorage.setItem(STORE + '-code', code); } catch (e) {}
+  if (wasOn) { stopRegiePeer(); startRegiePeer(); }
+  else { $('#regieCode').textContent = REGIE_CODE; renderQR(); }
+  toast(`Nouveau code de la régie : ${code}. Reconnectez les iPad avec le nouveau QR code.`);
+  return '';
+}
+(() => {
+  const box = $('#codeEditBox'), inp = $('#codeEditInput'), err = $('#codeEditErr'), btn = $('#codeEditBtn');
+  if (!box) return;
+  const close = () => { box.hidden = true; btn.hidden = false; err.hidden = true; };
+  const ok = () => { const e = setRegieCode(inp.value); if (e) { err.textContent = e; err.hidden = false; inp.focus(); } else close(); };
+  btn.addEventListener('click', () => { inp.value = REGIE_CODE || ''; err.hidden = true; box.hidden = false; btn.hidden = true; inp.focus(); inp.select(); });
+  inp.addEventListener('input', () => { inp.value = inp.value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 5); err.hidden = true; });
+  inp.addEventListener('keydown', e => { e.stopPropagation(); if (e.key === 'Enter') { e.preventDefault(); ok(); } else if (e.key === 'Escape') close(); });
+  $('#codeEditOk').addEventListener('click', ok);
+  $('#codeEditRnd').addEventListener('click', () => { inp.value = genCode(); err.hidden = true; inp.focus(); });
+  $('#codeEditCancel').addEventListener('click', close);
+})();
 function stopRegiePeer(){
   if (!regiePeer) return;
   const p = regiePeer; regiePeer = null; try { p.destroy(); } catch (e) {}

@@ -1,5 +1,8 @@
 # Historique des versions
 
+## 1.2.2 — novembre 2026
+- **Code d'accès des iPad modifiable** : dans la régie (onglet Caméra), bouton **Changer le code** pour choisir un nouveau code de 5 lettres ou chiffres, ou en tirer un au hasard. Le code est mémorisé sur l'appareil de régie ; les QR codes sont régénérés et les iPad déjà connectés doivent se reconnecter avec le nouveau code.
+
 ## 1.2.1 — novembre 2026
 - **Prompteur de l'iPad présentateur** : la taille du texte s'adapte à l'écran de l'iPad (la taille réglée en régie vaut pour un grand écran). Boutons **A− / A+** sur l'iPad pour l'ajuster, réglage mémorisé sur l'appareil.
 - **Micros des iPad** : le micro d'un iPad (présentateur ou caméra) n'est ouvert que lorsque cet iPad est à l'antenne ; tous les autres sont coupés. Le mode « Son ouvert » est réservé au micro de la régie.
