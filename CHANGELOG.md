@@ -1,5 +1,10 @@
 # Historique des versions
 
+## 1.3.0 — novembre 2026
+- **Débit réseau fortement réduit** : seul l'iPad à l'antenne (ou prévenu) envoie une image de qualité. Les autres envoient une petite image (240p, 12 images/s, ≈ 0,15 Mb/s) suffisante pour les vignettes. Avec plusieurs élèves connectés, le flux total est divisé par 4 à 8.
+- Réglage **Débit des iPad** dans l'onglet Caméra : Économe (Wi-Fi chargé), Normal (conseillé), Haute qualité. Appliqué en direct à tous les iPad connectés.
+- Affichage du **flux reçu** en temps réel par la régie.
+
 ## 1.2.2 — novembre 2026
 - **Code d'accès des iPad modifiable** : dans la régie (onglet Caméra), bouton **Changer le code** pour choisir un nouveau code de 5 lettres ou chiffres, ou en tirer un au hasard. Le code est mémorisé sur l'appareil de régie ; les QR codes sont régénérés et les iPad déjà connectés doivent se reconnecter avec le nouveau code.
 
