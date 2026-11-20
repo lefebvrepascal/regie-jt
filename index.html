@@ -169,6 +169,9 @@ body.is-rec .pf-rec{color:var(--rec)}
 .net-code{display:flex;flex-direction:column;gap:4px;flex:1;min-width:140px}
 .net-code b{font:700 40px/1 var(--display);letter-spacing:.18em;font-variant-numeric:tabular-nums}
 .net-code .chip{align-self:flex-start}
+.code-edit{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+.code-edit input{width:7.5em;flex:none;font:700 20px/1 var(--display);letter-spacing:.18em;text-transform:uppercase;text-align:center}
+.code-edit .err{color:#ff8a82;font-size:12.5px;flex-basis:100%}
 .chip.warn{color:var(--warn);border-color:rgba(255,176,32,.45)}
 .chip.off{color:#ff8a82;border-color:rgba(255,59,48,.45)}
 .qr{background:#fff;padding:6px;border-radius:6px;line-height:0}
@@ -340,7 +343,18 @@ body.is-live .btn.live{background:#7c3aed;border-color:#7c3aed;color:#fff;animat
 
         <h3 id="netSection">iPad présentateur et caméras</h3>
         <div class="net-box">
-          <div class="net-code"><span class="note">Code de la régie</span><b id="regieCode">·····</b><span class="chip" id="netChip">Hors ligne</span></div>
+          <div class="net-code"><span class="note">Code de la régie</span><b id="regieCode">·····</b><span class="chip" id="netChip">Hors ligne</span>
+            <button class="btn sm ghost" id="codeEditBtn" type="button" style="align-self:flex-start" title="Choisir un autre code d'accès pour les iPad">Changer le code</button>
+            <div id="codeEditBox" hidden>
+              <div class="code-edit">
+                <input type="text" id="codeEditInput" maxlength="5" autocapitalize="characters" autocomplete="off" spellcheck="false" placeholder="5 car." aria-label="Nouveau code de la régie">
+                <button class="btn sm primary" id="codeEditOk" type="button">Valider</button>
+                <button class="btn sm" id="codeEditRnd" type="button" title="Tirer un code au hasard">Au hasard</button>
+                <button class="btn sm ghost" id="codeEditCancel" type="button">Annuler</button>
+                <span class="err" id="codeEditErr" hidden></span>
+              </div>
+              <p class="note">5 lettres ou chiffres. Les iPad déjà connectés seront déconnectés : ils devront scanner le nouveau QR code ou saisir le nouveau code.</p>
+            </div></div>
           <figure class="qr-fig"><div class="qr" id="qrPres" hidden></div><figcaption>Présentateur</figcaption></figure>
           <figure class="qr-fig"><div class="qr" id="qrBox" hidden></div><figcaption>Caméras</figcaption></figure>
         </div>
@@ -354,6 +368,12 @@ body.is-live .btn.live{background:#7c3aed;border-color:#7c3aed;color:#fff;animat
           <label class="field" style="flex:0 0 auto"><span>Décompte « Prévenir »</span><select id="cueSeconds" data-k="cueSeconds"><option value="5">5 s</option><option value="10">10 s</option><option value="15">15 s</option><option value="20">20 s</option><option value="30">30 s</option></select></label>
           <label class="check" style="flex:1;min-width:180px"><input type="checkbox" id="cueAuto" data-k="cueAuto"> Basculer à l'antenne automatiquement à la fin du décompte</label>
         </div>
+        <label class="field"><span>Débit des iPad (réseau du collège)</span><select id="netQuality" data-k="netQuality">
+          <option value="eco">Économe — Wi-Fi chargé, beaucoup d'iPad (antenne 480p ≈ 0,7 Mb/s)</option>
+          <option value="normal">Normal — conseillé (antenne 720p ≈ 1,2 Mb/s)</option>
+          <option value="haute">Haute qualité — peu d'iPad, bon réseau (antenne 720p ≈ 2,5 Mb/s)</option>
+        </select></label>
+        <p class="note">Seul l'iPad à l'antenne (ou prévenu) envoie une image de bonne qualité ; les autres envoient une petite image économe (≈ 0,1 à 0,3 Mb/s) qui suffit pour les vignettes. Si la connexion se coupe quand beaucoup d'élèves sont connectés, passez en « Économe ». <span id="netRate"></span></p>
         <p class="note">« Prévenir » (ou Maj + chiffre) affiche un décompte orange sur l'iPad caméra : son opérateur se prépare avant que vous la mettiez à l'antenne.</p>
         <p class="note" id="netNote">Les deux appareils doivent avoir accès à internet pour se trouver ; l'image passe ensuite directement par le réseau du collège.</p>
         <div class="row"><button class="btn sm" id="netTestBtn" type="button">Tester le réseau</button><span class="note">Vérifie que les iPad pourront se connecter sur ce Wi-Fi (wifipedago…).</span></div>
@@ -2918,7 +2938,7 @@ const DEFAULT = {
   ],
   active:0,
   prompter:{speed:50, size:52, mirror:false},
-  camPageUrl:'', cueSeconds:'10', cueAuto:false,
+  camPageUrl:'', cueSeconds:'10', cueAuto:false, netQuality:'normal',
   live:{remember:false, dests:{
     fb:{on:false, url:'rtmps://live-api-s.facebook.com:443/rtmp/', key:''},
     ig:{on:false, url:'', key:'', vertical:true},
@@ -2940,6 +2960,15 @@ function merge(def, saved){
   return o;
 }
 const STORE = 'regie-jt-sacrecoeur-v1';
+/* ---------- débit des iPad (v1.3) ----------
+   Chaque iPad envoie une image de qualité seulement quand il est à l'antenne ou prévenu ;
+   hors antenne, une petite image (résolution ÷ 3 ou 4, peu d'images/s, faible débit) suffit
+   pour les vignettes. On divise ainsi le flux total par 4 à 8 quand plusieurs iPad sont connectés. */
+const NET_LEVELS = {
+  eco:    {live:{maxBitrate: 700000, scale:1.5, fps:25}, idle:{maxBitrate:100000, scale:4, fps:8}},
+  normal: {live:{maxBitrate:1200000, scale:1,   fps:30}, idle:{maxBitrate:180000, scale:3, fps:12}},
+  haute:  {live:{maxBitrate:2500000, scale:1,   fps:30}, idle:{maxBitrate:350000, scale:2, fps:15}},
+};
 let S;
 try { S = merge(JSON.parse(JSON.stringify(DEFAULT)), JSON.parse(localStorage.getItem(STORE) || 'null')); }
 catch (e) { S = JSON.parse(JSON.stringify(DEFAULT)); }
@@ -3596,7 +3625,7 @@ function renderMultiview(){
   });
 }
 function sendTally(){
-  for (const s of sources) if (s.conn && s.conn.open) { try { s.conn.send({tally: s.id === progId, rec: !!rec}); } catch (e) {} }
+  for (const s of sources) if (s.conn && s.conn.open) { try { s.conn.send({tally: s.id === progId, rec: !!rec, net: NET_LEVELS[S.netQuality] ? S.netQuality : 'normal'}); } catch (e) {} }
 }
 /* ---------- prompteur sur l'iPad présentateur ---------- */
 function sendPrompter(extra){
@@ -3631,6 +3660,23 @@ function updateCues(now){
   }
   if (dirty) renderMultiview();
 }
+
+/* régie : affiche le flux total reçu des iPad */
+const rateLast = {};
+async function measureRate(){
+  const el = document.getElementById('netRate'); if (!el || inCamMode) return;
+  let bits = 0, n = 0; const now = performance.now();
+  for (const s of sources) {
+    const pc = s.kind === 'remote' && s.call && s.call.peerConnection; if (!pc) continue;
+    let bytes = 0;
+    try { (await pc.getStats()).forEach(r => { if (r.type === 'inbound-rtp') bytes += r.bytesReceived || 0; }); } catch (e) { continue; }
+    const prev = rateLast[s.id]; rateLast[s.id] = {bytes, t: now};
+    if (prev && bytes >= prev.bytes) { bits += (bytes - prev.bytes)*8000/(now - prev.t); n++; }
+  }
+  for (const k in rateLast) if (!sources.some(s => s.id === k)) delete rateLast[k];
+  el.textContent = n ? `Flux reçu en ce moment : ${(bits/1e6).toLocaleString('fr-FR', {maximumFractionDigits:1})} Mb/s pour ${n} iPad.` : '';
+}
+setInterval(measureRate, 2000);
 
 /* ---------- réception des iPad caméras (WebRTC via PeerJS) ---------- */
 const CODE_ALPHA = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
@@ -3896,11 +3942,36 @@ function startRegiePeer(){
   peer.on('error', err => {
     if (regiePeer !== peer) return;
     const t = err && err.type;
-    if (t === 'unavailable-id') peer._jtTaken = true, setNet('Code déjà utilisé', 'off'), toast("Cette régie est déjà ouverte ailleurs (autre onglet ou appareil). Fermez l'autre fenêtre puis rechargez.");
+    if (t === 'unavailable-id') peer._jtTaken = true, setNet('Code déjà utilisé', 'off'), toast("Ce code est déjà utilisé par une régie ouverte ailleurs (autre onglet ou appareil). Fermez l'autre fenêtre, ou choisissez un autre code avec « Changer le code ».");
     else if (t === 'network' || t === 'server-error' || t === 'socket-error' || t === 'socket-closed') setNet('Pas de connexion internet', 'off');
     else if (t === 'browser-incompatible') setNet('Navigateur incompatible', 'off');
   });
 }
+/* changement du code d'accès des iPad (rôle régie) */
+function setRegieCode(code){
+  code = String(code || '').trim().toUpperCase().replace(/[^A-Z0-9]/g, '');
+  if (!/^[A-Z0-9]{5}$/.test(code)) return 'Le code doit faire exactement 5 lettres ou chiffres.';
+  if (code === REGIE_CODE) return '';
+  const wasOn = !!regiePeer;
+  REGIE_CODE = code;
+  try { localStorage.setItem(STORE + '-code', code); } catch (e) {}
+  if (wasOn) { stopRegiePeer(); startRegiePeer(); }
+  else { $('#regieCode').textContent = REGIE_CODE; renderQR(); }
+  toast(`Nouveau code de la régie : ${code}. Reconnectez les iPad avec le nouveau QR code.`);
+  return '';
+}
+(() => {
+  const box = $('#codeEditBox'), inp = $('#codeEditInput'), err = $('#codeEditErr'), btn = $('#codeEditBtn');
+  if (!box) return;
+  const close = () => { box.hidden = true; btn.hidden = false; err.hidden = true; };
+  const ok = () => { const e = setRegieCode(inp.value); if (e) { err.textContent = e; err.hidden = false; inp.focus(); } else close(); };
+  btn.addEventListener('click', () => { inp.value = REGIE_CODE || ''; err.hidden = true; box.hidden = false; btn.hidden = true; inp.focus(); inp.select(); });
+  inp.addEventListener('input', () => { inp.value = inp.value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 5); err.hidden = true; });
+  inp.addEventListener('keydown', e => { e.stopPropagation(); if (e.key === 'Enter') { e.preventDefault(); ok(); } else if (e.key === 'Escape') close(); });
+  $('#codeEditOk').addEventListener('click', ok);
+  $('#codeEditRnd').addEventListener('click', () => { inp.value = genCode(); err.hidden = true; inp.focus(); });
+  $('#codeEditCancel').addEventListener('click', close);
+})();
 function stopRegiePeer(){
   if (!regiePeer) return;
   const p = regiePeer; regiePeer = null; try { p.destroy(); } catch (e) {}
@@ -3983,6 +4054,29 @@ function cmRender(){
     $('#cmCountT').textContent = rest > 0 ? 'À l\u2019antenne dans' : 'À l\u2019antenne d\u2019un instant à l\u2019autre';
   }
   if (!cue && cmCueTimer) { clearInterval(cmCueTimer); cmCueTimer = 0; }
+  cmApplyNet();
+}
+/* iPad : règle son débit d'envoi selon l'antenne et le niveau choisi en régie */
+let cmNetLevel = 'normal', cmNetKey = '', cmNetRetry = 0;
+async function cmApplyNet(force){
+  const pc = cm.call && cm.call.peerConnection;
+  const vs = pc && pc.getSenders().find(x => x.track && x.track.kind === 'video');
+  const lv = NET_LEVELS[cmNetLevel] || NET_LEVELS.normal;
+  const on = cmBase === 'live' || (cmCueUntil && cmBase !== 'off');
+  const p = on ? lv.live : lv.idle, key = cmNetLevel + (on ? ':live' : ':idle');
+  if (!vs || !vs.getParameters) return;
+  if (key === cmNetKey && !force) return;
+  try {
+    const prm = vs.getParameters();
+    if (!prm.encodings || !prm.encodings.length) { clearTimeout(cmNetRetry); cmNetRetry = setTimeout(() => cmApplyNet(true), 1000); return; }
+    const e = prm.encodings[0];
+    e.maxBitrate = p.maxBitrate; e.scaleResolutionDownBy = p.scale; e.maxFramerate = p.fps;
+    await vs.setParameters(prm);
+    cmNetKey = key;
+  } catch (err) {
+    // anciens navigateurs : au moins le débit
+    try { const prm = vs.getParameters(); if (prm.encodings && prm.encodings[0]) { prm.encodings[0].maxBitrate = p.maxBitrate; await vs.setParameters(prm); cmNetKey = key; } } catch (e2) {}
+  }
 }
 function cmTally(state){ cmBase = state; if (state === 'live' || state === 'off') cmCueUntil = 0; cmRender(); }
 function cmCue(c){
@@ -3995,6 +4089,7 @@ async function cmStartCamera(){
   if (!navigator.mediaDevices?.getUserMedia) { cmStatus("La caméra n'est pas accessible : la page doit être ouverte en https dans Safari."); return; }
   const id = $('#cmCam').value;
   const vc = id ? {deviceId:{exact:id}, width:{ideal:1280}, height:{ideal:720}} : {facingMode:{ideal: cm.role === 'presenter' ? 'user' : 'environment'}, width:{ideal:1280}, height:{ideal:720}};
+  vc.frameRate = {ideal:30, max:30};
   try {
     const old = cm.stream;
     const oldAudio = old ? old.getAudioTracks().filter(t => t.readyState === 'live') : [];
@@ -4014,7 +4109,7 @@ async function cmStartCamera(){
     const pc = cm.call && cm.call.peerConnection;
     if (pc) {
       const vs = pc.getSenders().find(x => x.track && x.track.kind === 'video');
-      if (vs) await vs.replaceTrack(tr).catch(() => {});
+      if (vs) { await vs.replaceTrack(tr).catch(() => {}); cmApplyNet(true); }
     }
     if (old) old.getVideoTracks().forEach(t => t.stop());
     cmMeter();
@@ -4080,12 +4175,18 @@ function cmConnect(){
     conn.on('open', () => { cmStatus(`Connectée à la régie ${code}. L'opérateur peut mettre « ${name} » à l'antenne.`); cmTally('ready'); setTimeout(() => cmPanel(false), 1500); });
     conn.on('data', d => {
       if (!d) return;
+      if (d.net && NET_LEVELS[d.net] && d.net !== cmNetLevel) { cmNetLevel = d.net; cmNetKey = ''; }
       if ('tally' in d) cmTally(d.tally ? 'live' : 'ready');
       if ('cue' in d) cmCue(d.cue);
       if (d.prompt) cmPromptMsg(d.prompt);
     });
     conn.on('close', () => { if (cm.conn === conn) { cmStatus('La régie a fermé la connexion.'); cmTally('off'); cmPanel(true); } });
-    cm.call = peer.call(target, cm.stream, {metadata:{name, role: cm.role}});
+    cmNetKey = '';
+    const call = cm.call = peer.call(target, cm.stream, {metadata:{name, role: cm.role}});
+    // dès que l'image part, l'iPad se met en « petite image » tant qu'il n'est pas à l'antenne
+    const pc = call && call.peerConnection;
+    if (pc) pc.addEventListener('connectionstatechange', () => { if (pc.connectionState === 'connected') cmApplyNet(true); });
+    cmApplyNet(true);
   });
   peer.on('error', err => {
     if (cm.peer !== peer) return;
@@ -4515,6 +4616,7 @@ $$('[data-k]').forEach(el => {
     if (k === 'cam.mic') { if (v && camStream && !micStream) startCamera(); else if (!v && micStream) { micStream.getTracks().forEach(t => t.stop()); micStream = null; connectMic(); updateChips(); } }
     if (k === 'audio.monitor' && monitorGain) monitorGain.gain.setTargetAtTime(v ? 1 : 0, AC.currentTime, 0.05);
     if (k === 'camPageUrl') renderQR();
+    if (k === 'netQuality') sendTally();
     if (k.startsWith('live.')) liveHint();
   });
 });

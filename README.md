@@ -40,7 +40,7 @@ Conçue au **Collège du Sacré-Cœur de Halluin** pour le cours d'iPad de 6e. F
 | **Caméra** | autres iPad | Plans larges, reportages, interviews, avec la caméra arrière (image plein cadre). |
 
 1. Ouvrez https://regie-jt-sacre-coeur.netlify.app/ sur l'appareil de régie et choisissez **Régie**.
-2. Onglet **Caméra** : scannez le QR code **Présentateur** avec l'iPad placé face à l'élève, puis le QR code **Caméras** avec les autres iPad.
+2. Onglet **Caméra** : scannez le QR code **Présentateur** avec l'iPad placé face à l'élève, puis le QR code **Caméras** avec les autres iPad. Le code de la régie peut être changé avec **Changer le code** (5 lettres ou chiffres) ; les iPad se reconnectent alors avec le nouveau QR code.
 3. Réglez le fond vert du présentateur (pipette, tolérance), préparez le **Conducteur**, lancez le prompteur (Espace) et **● REC**.
 
 > Les appareils se trouvent grâce aux fonctions Netlify du site (`/api/signal`), en HTTPS ordinaire : cela fonctionne sur les réseaux scolaires filtrés. L'image passe ensuite directement d'un appareil à l'autre, ou par un relais TURN si le Wi-Fi isole les appareils (voir « Réseau du collège »). Le bouton **Tester le réseau** donne un diagnostic en clair.
@@ -51,6 +51,7 @@ Conçue au **Collège du Sacré-Cœur de Halluin** pour le cours d'iPad de 6e. F
 | --- | --- |
 | WebSocket ou serveur PeerJS bloqué | Mise en relation par `/api/signal` (fonction Netlify + Netlify Blobs), en requêtes HTTPS vers le site lui-même. Aucun réglage. |
 | Wi-Fi qui isole les appareils (« connectée » mais sans image) | Relais TURN via `/api/ice`. À activer une fois : créez une clé TURN gratuite sur Cloudflare (*Realtime › TURN Server*), puis dans Netlify (*Project configuration › Environment variables*) ajoutez `CF_TURN_KEY_ID` et `CF_TURN_API_TOKEN`, et relancez un déploiement. Autre serveur TURN : `TURN_URLS`, `TURN_USERNAME`, `TURN_CREDENTIAL`. |
+| La connexion se coupe quand beaucoup d'iPad sont connectés | Seul l'iPad à l'antenne envoie une image de qualité, les autres une petite image économe. Onglet Caméra › **Débit des iPad** : passez en « Économe » sur un Wi-Fi chargé. La régie affiche le flux reçu en temps réel. Si le relais TURN est actif, l'image passe par internet : le débit compte deux fois sur la connexion du collège. |
 | Tout est bloqué | Partage de connexion d'un téléphone ou mini-routeur 4G pour le studio. |
 
 Pour forcer l'ancien fonctionnement : ajoutez `?signal=peerjs` à l'adresse de la régie **et** des iPad.
